@@ -30,7 +30,6 @@ LIBRARY_UPLOAD_DIR = UPLOAD_ROOT / "library"
 LIBRARY_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Blunderbuddies Production Suite")
-app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
 
 app.add_middleware(
     CORSMiddleware,
@@ -233,3 +232,6 @@ async def delete_library_entry(entry_id: int, session: AsyncSession = Depends(ge
         raise HTTPException(status_code=404, detail="Library entry not found")
     await session.delete(entry)
     await session.commit()
+
+
+app.mount("/uploads", StaticFiles(directory=UPLOAD_ROOT), name="uploads")
