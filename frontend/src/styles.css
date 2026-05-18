@@ -421,6 +421,89 @@ p {
   white-space: normal;
 }
 
+.audio-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 18px;
+}
+
+.audio-shot-list,
+.audio-lines,
+.music-track-list,
+.music-track {
+  display: grid;
+  gap: 14px;
+}
+
+.audio-shot,
+.audio-line,
+.music-track {
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.audio-line {
+  grid-template-columns: minmax(0, 1fr) 300px;
+}
+
+.line-main,
+.line-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.line-main label,
+.line-controls label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.file-button {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px !important;
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+
+.file-button input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.assembly-table-wrap {
+  overflow-x: auto;
+}
+
+.assembly-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.assembly-table th,
+.assembly-table td {
+  border-bottom: 1px solid var(--border);
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.assembly-table th {
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .empty-state,
 .muted,
 .asset-path {
@@ -544,7 +627,9 @@ p {
   .two-column,
   .shot-card-grid,
   .workshop-grid,
-  .shot-detail-grid {
+  .shot-detail-grid,
+  .audio-page,
+  .audio-line {
     grid-template-columns: 1fr;
   }
 

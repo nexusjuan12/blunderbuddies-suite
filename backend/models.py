@@ -46,6 +46,7 @@ class Shot(TimestampMixin, Base):
     images: Mapped[list["Image"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
     videos: Mapped[list["Video"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
     prompt_history: Mapped[list["PromptHistory"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
+    audio_lines: Mapped[list["AudioLine"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
 
 
 class LoreEntry(TimestampMixin, Base):
@@ -111,6 +112,22 @@ class PromptHistory(TimestampMixin, Base):
     model: Mapped[str] = mapped_column(String(128), default="mock")
 
     shot: Mapped[Shot] = relationship(back_populates="prompt_history")
+
+
+class AudioLine(TimestampMixin, Base):
+    __tablename__ = "audio_lines"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id"), nullable=False)
+    character_name: Mapped[str] = mapped_column(String(255), default="")
+    line_text: Mapped[str] = mapped_column(Text, default="")
+    file_path: Mapped[str] = mapped_column(String(1024), default="")
+    silence_start_ms: Mapped[int] = mapped_column(Integer, default=0)
+    silence_end_ms: Mapped[int] = mapped_column(Integer, default=0)
+    padded_file_path: Mapped[str] = mapped_column(String(1024), default="")
+    total_duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+
+    shot: Mapped[Shot] = relationship(back_populates="audio_lines")
 
 
 class MusicTrack(TimestampMixin, Base):

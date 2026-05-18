@@ -24,6 +24,12 @@ async function request(path, options = {}) {
   return response.json();
 }
 
+async function upload(path, file) {
+  const body = new FormData();
+  body.append("file", file);
+  return request(path, { method: "POST", body });
+}
+
 export const api = {
   listEpisodes: () => request("/episodes"),
   createEpisode: (payload) => request("/episodes", { method: "POST", body: JSON.stringify(payload) }),
@@ -46,6 +52,17 @@ export const api = {
   generateVideo: (shotId, payload) =>
     request(`/shots/${shotId}/videos/generate`, { method: "POST", body: JSON.stringify(payload) }),
   approveVideo: (videoId) => request(`/videos/${videoId}/approve`, { method: "POST" }),
+  getEpisodeAudio: (episodeId) => request(`/episodes/${episodeId}/audio`),
+  updateAudioLine: (id, payload) => request(`/audio-lines/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  uploadAudioLine: (id, file) => upload(`/audio-lines/${id}/upload`, file),
+  padAudioLine: (id) => request(`/audio-lines/${id}/pad`, { method: "POST" }),
+  createMusicTrack: (episodeId, payload) =>
+    request(`/episodes/${episodeId}/music-tracks`, { method: "POST", body: JSON.stringify(payload) }),
+  updateMusicTrack: (id, payload) => request(`/music-tracks/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  uploadMusicTrack: (id, file) => upload(`/music-tracks/${id}/upload`, file),
+  deleteMusicTrack: (id) => request(`/music-tracks/${id}`, { method: "DELETE" }),
+  getAssembly: (episodeId) => request(`/episodes/${episodeId}/assembly`),
+  exportAssembly: (episodeId) => request(`/episodes/${episodeId}/assembly/export`, { method: "POST" }),
   listLibrary: ({ q = "", entry_type = "" } = {}) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -57,9 +74,7 @@ export const api = {
   updateLibraryEntry: (id, payload) => request(`/library/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteLibraryEntry: (id) => request(`/library/${id}`, { method: "DELETE" }),
   uploadLibraryAsset: (file) => {
-    const body = new FormData();
-    body.append("file", file);
-    return request("/uploads/library", { method: "POST", body });
+    return upload("/uploads/library", file);
   },
 };
 

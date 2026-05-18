@@ -10,17 +10,24 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_session, init_db
-from models import Episode, Image, LoreEntry, PromptHistory, Shot, Video
+from models import AudioLine, Episode, Image, LoreEntry, MusicTrack, PromptHistory, Shot, Video
 from schemas import (
+    AssemblyRead,
+    AudioLineRead,
+    AudioLineUpdate,
     BeginProductionRequest,
     EpisodeCreate,
     EpisodeRead,
     EpisodeUpdate,
+    EpisodeAudioRead,
     ImageGenerateRequest,
     ImageRead,
     LoreEntryCreate,
     LoreEntryRead,
     LoreEntryUpdate,
+    MusicTrackCreate,
+    MusicTrackRead,
+    MusicTrackUpdate,
     PromptAssistRead,
     PromptAssistRequest,
     ShotRead,
@@ -31,11 +38,13 @@ from schemas import (
     VideoRead,
 )
 from services.llm_service import generate_image_prompt, generate_shot_breakdown, generate_video_prompt
+from services.audio_service import pad_audio
 
 UPLOAD_ROOT = Path(os.getenv("UPLOADS_DIR", "./uploads")).resolve()
 LIBRARY_UPLOAD_DIR = UPLOAD_ROOT / "library"
 LIBRARY_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MOCK_ASSET_ROOT = (Path(__file__).resolve().parent.parent / "mock-assets").resolve()
+OUTPUTS_ROOT = Path(os.getenv("OUTPUTS_DIR", "../outputs")).resolve()
 
 ALLOWED_ASSET_EXTENSIONS = {
     "image": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
@@ -54,6 +63,38 @@ def classify_asset(content_type: str | None, filename: str | None) -> tuple[str,
     if content_type.startswith("video/") or suffix in ALLOWED_ASSET_EXTENSIONS["video"]:
         return "video", suffix if suffix in ALLOWED_ASSET_EXTENSIONS["video"] else ".mp4"
     raise HTTPException(status_code=400, detail="Library uploads support image, audio, and video files")
+
+
+def public_upload_path(path: Path) -> str:
+    return f"/uploads/{path.relative_to(UPLOAD_ROOT).as_posix()}"
+
+
+def slugify(value: str) -> str:
+    cleaned = "".join(char.lower() if char.isalnum() else "_" for char in value).strip("_")
+    return "_".join(part for part in cleaned.split("_") if part) or "episode"
+
+
+def resolve_asset_path(file_path: str) -> Path | None:
+    if not file_path:
+        return None
+    if file_path.startswith("/uploads/"):
+        path = UPLOAD_ROOT / file_path.removeprefix("/uploads/")
+    elif file_path.startswith("/mock-assets/"):
+        path = MOCK_ASSET_ROOT / file_path.removeprefix("/mock-assets/")
+    else:
+        path = Path(file_path)
+    return path if path.exists() else None
+
+
+def copy_asset(file_path: str, destination: Path) -> str:
+    source = resolve_asset_path(file_path)
+    if source is None:
+        return ""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if source.resolve() == destination.resolve():
+        return destination.name
+    shutil.copy2(source, destination)
+    return destination.name
 
 app = FastAPI(title="Blunderbuddies Production Suite")
 
@@ -396,6 +437,297 @@ async def approve_video(video_id: int, session: AsyncSession = Depends(get_sessi
     await session.commit()
     await session.refresh(video)
     return video
+
+
+async def ensure_audio_lines(episode_id: int, session: AsyncSession) -> list[AudioLine]:
+    shots_result = await session.execute(
+        select(Shot).where(Shot.episode_id == episode_id, Shot.has_dialogue.is_(True)).order_by(Shot.order_index.asc())
+    )
+    shots = list(shots_result.scalars())
+    created: list[AudioLine] = []
+    for shot in shots:
+        existing_result = await session.execute(select(AudioLine).where(AudioLine.shot_id == shot.id))
+        existing_names = {line.character_name for line in existing_result.scalars()}
+        character_names = shot.characters or ["Dialogue"]
+        for character_name in character_names:
+            if character_name not in existing_names:
+                line = AudioLine(
+                    shot_id=shot.id,
+                    character_name=character_name,
+                    line_text="",
+                )
+                session.add(line)
+                created.append(line)
+    if created:
+        await session.commit()
+        for line in created:
+            await session.refresh(line)
+    return created
+
+
+@app.get("/episodes/{episode_id}/audio", response_model=EpisodeAudioRead)
+async def get_episode_audio(episode_id: int, session: AsyncSession = Depends(get_session)) -> dict:
+    episode = await session.get(Episode, episode_id)
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    await ensure_audio_lines(episode_id, session)
+
+    shots_result = await session.execute(
+        select(Shot).where(Shot.episode_id == episode_id, Shot.has_dialogue.is_(True)).order_by(Shot.order_index.asc())
+    )
+    shots = list(shots_result.scalars())
+    dialogue_shots = []
+    for shot in shots:
+        lines_result = await session.execute(select(AudioLine).where(AudioLine.shot_id == shot.id).order_by(AudioLine.id.asc()))
+        dialogue_shots.append({"shot": shot, "lines": list(lines_result.scalars())})
+
+    music_result = await session.execute(
+        select(MusicTrack).where(MusicTrack.episode_id == episode_id).order_by(MusicTrack.id.desc())
+    )
+    return {"dialogue_shots": dialogue_shots, "music_tracks": list(music_result.scalars())}
+
+
+@app.patch("/audio-lines/{line_id}", response_model=AudioLineRead)
+async def update_audio_line(
+    line_id: int,
+    payload: AudioLineUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> AudioLine:
+    line = await session.get(AudioLine, line_id)
+    if line is None:
+        raise HTTPException(status_code=404, detail="Audio line not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(line, key, value)
+    await session.commit()
+    await session.refresh(line)
+    return line
+
+
+@app.post("/audio-lines/{line_id}/upload", response_model=AudioLineRead)
+async def upload_audio_line(
+    line_id: int,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> AudioLine:
+    line = await session.get(AudioLine, line_id)
+    if line is None:
+        raise HTTPException(status_code=404, detail="Audio line not found")
+    asset_kind, suffix = classify_asset(file.content_type, file.filename)
+    if asset_kind != "audio":
+        raise HTTPException(status_code=400, detail="Audio lines only accept audio files")
+
+    destination_dir = UPLOAD_ROOT / "audio-lines"
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination = destination_dir / f"{uuid4().hex}{suffix}"
+    with destination.open("wb") as output:
+        shutil.copyfileobj(file.file, output)
+    line.file_path = public_upload_path(destination)
+    await session.commit()
+    await session.refresh(line)
+    return line
+
+
+@app.post("/audio-lines/{line_id}/pad", response_model=AudioLineRead)
+async def pad_audio_line(line_id: int, session: AsyncSession = Depends(get_session)) -> AudioLine:
+    line = await session.get(AudioLine, line_id)
+    if line is None:
+        raise HTTPException(status_code=404, detail="Audio line not found")
+    if not line.file_path:
+        raise HTTPException(status_code=400, detail="Upload audio before applying padding")
+
+    source_path = UPLOAD_ROOT / line.file_path.removeprefix("/uploads/")
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Uploaded audio file not found")
+    shot = await session.get(Shot, line.shot_id)
+    episode = await session.get(Episode, shot.episode_id) if shot else None
+    if shot is None or episode is None:
+        raise HTTPException(status_code=404, detail="Shot or episode not found")
+
+    output_dir = OUTPUTS_ROOT / slugify(episode.title) / "audio"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    character = slugify(line.character_name)
+    output_path = output_dir / f"shot_{shot.order_index:02d}_{character}_padded.wav"
+    total_duration = pad_audio(str(source_path), str(output_path), line.silence_start_ms, line.silence_end_ms)
+    line.padded_file_path = str(output_path)
+    line.total_duration_ms = total_duration
+    await session.commit()
+    await session.refresh(line)
+    return line
+
+
+@app.post("/episodes/{episode_id}/music-tracks", response_model=MusicTrackRead, status_code=201)
+async def create_music_track(
+    episode_id: int,
+    payload: MusicTrackCreate,
+    session: AsyncSession = Depends(get_session),
+) -> MusicTrack:
+    episode = await session.get(Episode, episode_id)
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    track = MusicTrack(episode_id=episode_id, **payload.model_dump())
+    session.add(track)
+    await session.commit()
+    await session.refresh(track)
+    return track
+
+
+@app.patch("/music-tracks/{track_id}", response_model=MusicTrackRead)
+async def update_music_track(
+    track_id: int,
+    payload: MusicTrackUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> MusicTrack:
+    track = await session.get(MusicTrack, track_id)
+    if track is None:
+        raise HTTPException(status_code=404, detail="Music track not found")
+    for key, value in payload.model_dump(exclude_unset=True).items():
+        setattr(track, key, value)
+    await session.commit()
+    await session.refresh(track)
+    return track
+
+
+@app.post("/music-tracks/{track_id}/upload", response_model=MusicTrackRead)
+async def upload_music_track(
+    track_id: int,
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session),
+) -> MusicTrack:
+    track = await session.get(MusicTrack, track_id)
+    if track is None:
+        raise HTTPException(status_code=404, detail="Music track not found")
+    asset_kind, suffix = classify_asset(file.content_type, file.filename)
+    if asset_kind != "audio":
+        raise HTTPException(status_code=400, detail="Music tracks only accept audio files")
+    destination_dir = UPLOAD_ROOT / "music-tracks"
+    destination_dir.mkdir(parents=True, exist_ok=True)
+    destination = destination_dir / f"{uuid4().hex}{suffix}"
+    with destination.open("wb") as output:
+        shutil.copyfileobj(file.file, output)
+    track.file_path = public_upload_path(destination)
+    await session.commit()
+    await session.refresh(track)
+    return track
+
+
+@app.delete("/music-tracks/{track_id}", status_code=204)
+async def delete_music_track(track_id: int, session: AsyncSession = Depends(get_session)) -> None:
+    track = await session.get(MusicTrack, track_id)
+    if track is None:
+        raise HTTPException(status_code=404, detail="Music track not found")
+    await session.delete(track)
+    await session.commit()
+
+
+async def build_assembly(episode_id: int, session: AsyncSession, export_path: str | None = None) -> dict:
+    episode = await session.get(Episode, episode_id)
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    shots_result = await session.execute(select(Shot).where(Shot.episode_id == episode_id).order_by(Shot.order_index.asc()))
+    tracks_result = await session.execute(select(MusicTrack).where(MusicTrack.episode_id == episode_id))
+    music_tracks = list(tracks_result.scalars())
+    rows = []
+    for shot in shots_result.scalars():
+        first_result = await session.execute(
+            select(Image).where(Image.shot_id == shot.id, Image.frame_type == "first", Image.approved.is_(True))
+        )
+        last_result = await session.execute(
+            select(Image).where(Image.shot_id == shot.id, Image.frame_type == "last", Image.approved.is_(True))
+        )
+        video_result = await session.execute(select(Video).where(Video.shot_id == shot.id, Video.approved.is_(True)))
+        audio_result = await session.execute(select(AudioLine).where(AudioLine.shot_id == shot.id))
+        lines = list(audio_result.scalars())
+        rows.append(
+            {
+                "shot": shot,
+                "first_frame": "approved" if first_result.scalar_one_or_none() else "missing",
+                "last_frame": "approved" if last_result.scalar_one_or_none() else "missing",
+                "video": "approved" if video_result.scalar_one_or_none() else "missing",
+                "audio": "padded" if any(line.padded_file_path for line in lines) else ("uploaded" if any(line.file_path for line in lines) else "missing"),
+                "music": "attached" if music_tracks else "none",
+            }
+        )
+    return {"episode": episode, "shots": rows, "export_path": export_path}
+
+
+@app.get("/episodes/{episode_id}/assembly", response_model=AssemblyRead)
+async def get_assembly(episode_id: int, session: AsyncSession = Depends(get_session)) -> dict:
+    return await build_assembly(episode_id, session)
+
+
+@app.post("/episodes/{episode_id}/assembly/export", response_model=AssemblyRead)
+async def export_assembly(episode_id: int, session: AsyncSession = Depends(get_session)) -> dict:
+    episode = await session.get(Episode, episode_id)
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    output_root = OUTPUTS_ROOT / slugify(episode.title)
+    for folder in ("images", "videos", "audio", "music"):
+        (output_root / folder).mkdir(parents=True, exist_ok=True)
+    assembly = await build_assembly(episode_id, session, str(output_root))
+    lines = [
+        f"EPISODE: {episode.title}",
+        f"BUDDY DAY: {episode.buddy_day_name}",
+        f"TYPE: {episode.type}",
+        f"TOTAL SHOTS: {len(assembly['shots'])}",
+        "",
+    ]
+    for row in assembly["shots"]:
+        shot = row["shot"]
+        first_result = await session.execute(
+            select(Image).where(Image.shot_id == shot.id, Image.frame_type == "first", Image.approved.is_(True))
+        )
+        last_result = await session.execute(
+            select(Image).where(Image.shot_id == shot.id, Image.frame_type == "last", Image.approved.is_(True))
+        )
+        video_result = await session.execute(select(Video).where(Video.shot_id == shot.id, Video.approved.is_(True)))
+        audio_result = await session.execute(select(AudioLine).where(AudioLine.shot_id == shot.id))
+        first_image = first_result.scalar_one_or_none()
+        last_image = last_result.scalar_one_or_none()
+        video = video_result.scalar_one_or_none()
+        audio_lines = list(audio_result.scalars())
+
+        first_name = ""
+        if first_image:
+            suffix = Path(first_image.file_path).suffix or ".png"
+            first_name = copy_asset(first_image.file_path, output_root / "images" / f"shot_{shot.order_index:02d}_first{suffix}")
+        last_name = ""
+        if last_image:
+            suffix = Path(last_image.file_path).suffix or ".png"
+            last_name = copy_asset(last_image.file_path, output_root / "images" / f"shot_{shot.order_index:02d}_last{suffix}")
+        video_name = ""
+        if video and video.file_path:
+            suffix = Path(video.file_path).suffix or ".mp4"
+            video_name = copy_asset(video.file_path, output_root / "videos" / f"shot_{shot.order_index:02d}{suffix}")
+        copied_audio = []
+        for audio_line in audio_lines:
+            if audio_line.padded_file_path:
+                suffix = Path(audio_line.padded_file_path).suffix or ".wav"
+                filename = f"shot_{shot.order_index:02d}_{slugify(audio_line.character_name)}_padded{suffix}"
+                copied_name = copy_asset(audio_line.padded_file_path, output_root / "audio" / filename)
+                if copied_name:
+                    copied_audio.append(copied_name)
+        lines.extend(
+            [
+                f"SHOT {shot.order_index:02d} - {shot.description}",
+                f"  Characters: {', '.join(shot.characters)}",
+                f"  Setting: {shot.setting}",
+                f"  Mood: {shot.mood}",
+                f"  First Frame: {first_name or row['first_frame']}",
+                f"  Last Frame: {last_name or row['last_frame']}",
+                f"  Video: {video_name or row['video']}",
+                f"  Audio: {', '.join(copied_audio) if copied_audio else row['audio']}",
+                f"  Music: {row['music']}",
+                f"  Notes: {shot.music_notes}",
+                "",
+            ]
+        )
+    music_result = await session.execute(select(MusicTrack).where(MusicTrack.episode_id == episode_id))
+    for index, track in enumerate(music_result.scalars(), start=1):
+        if track.file_path:
+            suffix = Path(track.file_path).suffix or ".wav"
+            copy_asset(track.file_path, output_root / "music" / f"track_{index:02d}_{slugify(track.track_type)}{suffix}")
+    (output_root / "shot_sheet.txt").write_text("\n".join(lines), encoding="utf-8")
+    return assembly
 
 
 @app.get("/library", response_model=list[LoreEntryRead])

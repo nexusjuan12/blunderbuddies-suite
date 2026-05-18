@@ -209,6 +209,81 @@ class PromptAssistRead(BaseModel):
     prompt: str
 
 
+class AudioLineUpdate(BaseModel):
+    character_name: str | None = None
+    line_text: str | None = None
+    silence_start_ms: int | None = None
+    silence_end_ms: int | None = None
+
+
+class AudioLineRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    shot_id: int
+    character_name: str
+    line_text: str
+    file_path: str
+    silence_start_ms: int
+    silence_end_ms: int
+    padded_file_path: str
+    total_duration_ms: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class AudioShotRead(BaseModel):
+    shot: ShotRead
+    lines: list[AudioLineRead]
+
+
+class MusicTrackBase(BaseModel):
+    scene_reference: str = ""
+    track_type: str = "music"
+    file_path: str = ""
+    notes: str = ""
+
+
+class MusicTrackCreate(MusicTrackBase):
+    pass
+
+
+class MusicTrackUpdate(BaseModel):
+    scene_reference: str | None = None
+    track_type: str | None = None
+    file_path: str | None = None
+    notes: str | None = None
+
+
+class MusicTrackRead(MusicTrackBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    episode_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class EpisodeAudioRead(BaseModel):
+    dialogue_shots: list[AudioShotRead]
+    music_tracks: list[MusicTrackRead]
+
+
+class AssemblyShotRead(BaseModel):
+    shot: ShotRead
+    first_frame: str
+    last_frame: str
+    video: str
+    audio: str
+    music: str
+
+
+class AssemblyRead(BaseModel):
+    episode: EpisodeRead
+    shots: list[AssemblyShotRead]
+    export_path: str | None = None
+
+
 class UploadRead(BaseModel):
     file_path: str
     url: str
