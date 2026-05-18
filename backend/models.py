@@ -43,6 +43,9 @@ class Shot(TimestampMixin, Base):
     locked: Mapped[bool] = mapped_column(Boolean, default=False)
 
     episode: Mapped[Episode] = relationship(back_populates="shots")
+    images: Mapped[list["Image"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
+    videos: Mapped[list["Video"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
+    prompt_history: Mapped[list["PromptHistory"]] = relationship(back_populates="shot", cascade="all, delete-orphan")
 
 
 class LoreEntry(TimestampMixin, Base):
@@ -57,6 +60,57 @@ class LoreEntry(TimestampMixin, Base):
     asset_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
+
+
+class Image(TimestampMixin, Base):
+    __tablename__ = "images"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id"), nullable=False)
+    frame_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    resolution: Mapped[str] = mapped_column(String(32), default="1K")
+    aspect_ratio: Mapped[str] = mapped_column(String(32), default="16:9")
+    provider: Mapped[str] = mapped_column(String(64), default="mock")
+    prediction_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_path: Mapped[str] = mapped_column(String(1024), default="")
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+    input_slots: Mapped[list[dict]] = mapped_column(JSON, default=list)
+
+    shot: Mapped[Shot] = relationship(back_populates="images")
+
+
+class Video(TimestampMixin, Base):
+    __tablename__ = "videos"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id"), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    model: Mapped[str] = mapped_column(String(64), default="p-video")
+    duration_seconds: Mapped[int] = mapped_column(Integer, default=4)
+    fps: Mapped[int] = mapped_column(Integer, default=24)
+    resolution: Mapped[str] = mapped_column(String(32), default="720p")
+    draft_mode: Mapped[bool] = mapped_column(Boolean, default=True)
+    seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    provider: Mapped[str] = mapped_column(String(64), default="mock")
+    prediction_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_path: Mapped[str] = mapped_column(String(1024), default="")
+    approved: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    shot: Mapped[Shot] = relationship(back_populates="videos")
+
+
+class PromptHistory(TimestampMixin, Base):
+    __tablename__ = "prompt_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shot_id: Mapped[int] = mapped_column(ForeignKey("shots.id"), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, default="")
+    provider: Mapped[str] = mapped_column(String(64), default="mock")
+    model: Mapped[str] = mapped_column(String(128), default="mock")
+
+    shot: Mapped[Shot] = relationship(back_populates="prompt_history")
 
 
 class MusicTrack(TimestampMixin, Base):

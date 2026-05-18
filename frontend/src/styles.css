@@ -270,13 +270,35 @@ p {
 
 .shot-tile {
   min-width: 220px;
+  display: block;
+  text-align: left;
+  white-space: normal;
+}
+
+.active-shot {
+  border-color: var(--accent);
+}
+
+.shot-thumb-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-height: 54px;
+}
+
+.shot-thumb-pair img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid var(--border);
 }
 
 .slot-row {
   display: grid;
   grid-template-columns: 34px 1fr;
   gap: 10px;
-  align-items: center;
+  align-items: start;
 }
 
 .slot-index {
@@ -288,6 +310,115 @@ p {
   background: var(--accent);
   color: #08110d;
   font-weight: 700;
+}
+
+.slot-fields {
+  display: grid;
+  gap: 8px;
+}
+
+.slot-fields img {
+  width: 100%;
+  max-height: 130px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.shot-workshop {
+  display: grid;
+  gap: 18px;
+}
+
+.workshop-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 18px;
+}
+
+.shot-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.shot-detail-grid p {
+  margin-bottom: 0;
+}
+
+.generation-panel,
+.approved-stack,
+.prompt-history,
+.video-gallery {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.step-tabs,
+.control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.step-tabs button.active,
+.asset-card.selected,
+.video-result.selected {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.prompt-editor {
+  min-height: 150px;
+}
+
+.asset-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.asset-card {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  white-space: normal;
+}
+
+.asset-card img,
+.approved-stack img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.video-result {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  white-space: normal;
+}
+
+.mock-video-frame {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1a1d21, #2b3138);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.prompt-history button {
+  display: grid;
+  justify-items: start;
+  text-align: left;
+  white-space: normal;
 }
 
 .empty-state,
@@ -411,7 +542,9 @@ p {
   .topbar,
   .page-grid,
   .two-column,
-  .shot-card-grid {
+  .shot-card-grid,
+  .workshop-grid,
+  .shot-detail-grid {
     grid-template-columns: 1fr;
   }
 

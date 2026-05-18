@@ -37,6 +37,15 @@ export const api = {
       body: JSON.stringify({ shots }),
     }),
   updateShot: (id, payload) => request(`/shots/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  getShotProduction: (shotId) => request(`/shots/${shotId}/production`),
+  assistPrompt: (shotId, payload) =>
+    request(`/shots/${shotId}/prompt-assist`, { method: "POST", body: JSON.stringify(payload) }),
+  generateImage: (shotId, payload) =>
+    request(`/shots/${shotId}/images/generate`, { method: "POST", body: JSON.stringify(payload) }),
+  approveImage: (imageId) => request(`/images/${imageId}/approve`, { method: "POST" }),
+  generateVideo: (shotId, payload) =>
+    request(`/shots/${shotId}/videos/generate`, { method: "POST", body: JSON.stringify(payload) }),
+  approveVideo: (videoId) => request(`/videos/${videoId}/approve`, { method: "POST" }),
   listLibrary: ({ q = "", entry_type = "" } = {}) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);

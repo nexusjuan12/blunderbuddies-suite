@@ -38,3 +38,21 @@ async def init_db() -> None:
             for column, statement in migrations.items():
                 if column not in existing_columns:
                     await conn.exec_driver_sql(statement)
+            for table, statements in {
+                "images": {
+                    "input_slots": "ALTER TABLE images ADD COLUMN input_slots JSON",
+                    "updated_at": "ALTER TABLE images ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+                },
+                "videos": {
+                    "resolution": "ALTER TABLE videos ADD COLUMN resolution VARCHAR(32) DEFAULT '720p'",
+                    "updated_at": "ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+                },
+                "prompt_history": {
+                    "updated_at": "ALTER TABLE prompt_history ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+                },
+            }.items():
+                table_result = await conn.exec_driver_sql(f"PRAGMA table_info({table})")
+                table_columns = {row[1] for row in table_result.fetchall()}
+                for column, statement in statements.items():
+                    if table_columns and column not in table_columns:
+                        await conn.exec_driver_sql(statement)

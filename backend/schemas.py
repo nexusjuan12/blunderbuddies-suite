@@ -114,6 +114,101 @@ class ShotRead(ShotBase):
     updated_at: datetime
 
 
+class ImageInputSlotPayload(BaseModel):
+    slot_index: int
+    label: str = ""
+    source_type: str = "library"
+    library_entry_id: int | None = None
+    file_path: str | None = None
+    url: str | None = None
+
+
+class ImageGenerateRequest(BaseModel):
+    frame_type: str
+    prompt: str
+    resolution: str = "1K"
+    aspect_ratio: str = "16:9"
+    input_slots: list[ImageInputSlotPayload] = Field(default_factory=list)
+
+
+class ImageRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    shot_id: int
+    frame_type: str
+    prompt: str
+    resolution: str
+    aspect_ratio: str
+    provider: str
+    prediction_id: str | None = None
+    file_path: str
+    approved: bool
+    input_slots: list[dict] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class VideoGenerateRequest(BaseModel):
+    prompt: str
+    model: str = "p-video"
+    duration_seconds: int = 4
+    fps: int = 24
+    resolution: str = "720p"
+    draft_mode: bool = True
+    seed: int | None = None
+
+
+class VideoRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    shot_id: int
+    prompt: str
+    model: str
+    duration_seconds: int
+    fps: int
+    resolution: str
+    draft_mode: bool
+    seed: int | None = None
+    provider: str
+    prediction_id: str | None = None
+    file_path: str
+    approved: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PromptHistoryRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    shot_id: int
+    target_type: str
+    prompt: str
+    provider: str
+    model: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ShotProductionRead(BaseModel):
+    shot: ShotRead
+    images: list[ImageRead]
+    videos: list[VideoRead]
+    prompt_history: list[PromptHistoryRead]
+
+
+class PromptAssistRequest(BaseModel):
+    target_type: str
+    frame_type: str | None = None
+    input_slots: list[ImageInputSlotPayload] = Field(default_factory=list)
+
+
+class PromptAssistRead(BaseModel):
+    prompt: str
+
+
 class UploadRead(BaseModel):
     file_path: str
     url: str
