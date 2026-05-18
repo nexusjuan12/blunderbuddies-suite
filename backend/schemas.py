@@ -105,6 +105,11 @@ class ShotUpdate(BaseModel):
     locked: bool | None = None
 
 
+class ShotSplitRequest(BaseModel):
+    first_description: str | None = None
+    second_description: str = ""
+
+
 class ShotRead(ShotBase):
     model_config = ConfigDict(from_attributes=True)
 

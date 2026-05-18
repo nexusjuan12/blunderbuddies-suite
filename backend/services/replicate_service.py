@@ -45,6 +45,7 @@ def generate_image(prompt, image_input_urls, resolution, aspect_ratio):
         "image_input": image_input_urls,
         "output_format": "png",
         "resolution": resolution,
+        "aspect_ratio": aspect_ratio,
     }
     output = get_client().run(IMAGE_MODEL, input=input_payload)
     return output_to_url(output)

@@ -34,6 +34,7 @@ from schemas import (
     PromptAssistRequest,
     ShotRead,
     ShotProductionRead,
+    ShotSplitRequest,
     ShotUpdate,
     UploadRead,
     VideoGenerateRequest,
@@ -315,6 +316,45 @@ async def update_shot(shot_id: int, payload: ShotUpdate, session: AsyncSession =
     await session.commit()
     await session.refresh(shot)
     return shot
+
+
+@app.post("/shots/{shot_id}/split", response_model=list[ShotRead], status_code=201)
+async def split_shot(shot_id: int, payload: ShotSplitRequest, session: AsyncSession = Depends(get_session)) -> list[Shot]:
+    shot = await session.get(Shot, shot_id)
+    if shot is None:
+        raise HTTPException(status_code=404, detail="Shot not found")
+    if shot.generation_started or shot.locked:
+        raise HTTPException(status_code=400, detail="Cannot split a shot after generation has started")
+
+    if payload.first_description:
+        shot.description = payload.first_description
+
+    later_result = await session.execute(
+        select(Shot)
+        .where(Shot.episode_id == shot.episode_id, Shot.order_index > shot.order_index)
+        .order_by(Shot.order_index.desc())
+    )
+    for later_shot in later_result.scalars():
+        later_shot.order_index += 1
+
+    new_shot = Shot(
+        episode_id=shot.episode_id,
+        order_index=shot.order_index + 1,
+        description=payload.second_description or f"Continuation of shot {shot.order_index}",
+        characters=shot.characters,
+        setting=shot.setting,
+        mood=shot.mood,
+        has_dialogue=shot.has_dialogue,
+        music_notes=shot.music_notes,
+        status="planned",
+        generation_started=False,
+        locked=False,
+    )
+    session.add(new_shot)
+    await session.commit()
+
+    result = await session.execute(select(Shot).where(Shot.episode_id == shot.episode_id).order_by(Shot.order_index.asc()))
+    return list(result.scalars())
 
 
 @app.get("/shots/{shot_id}/production", response_model=ShotProductionRead)

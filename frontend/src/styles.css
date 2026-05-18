@@ -349,10 +349,17 @@ p {
 .generation-panel,
 .approved-stack,
 .prompt-history,
-.video-gallery {
+.video-gallery,
+.workshop-notes {
   display: grid;
   gap: 12px;
   margin-top: 18px;
+}
+
+.workshop-notes label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
 }
 
 .step-tabs,
@@ -482,6 +489,10 @@ p {
   inset: 0;
   opacity: 0;
   cursor: pointer;
+}
+
+.slot-upload {
+  width: fit-content;
 }
 
 .assembly-table-wrap {

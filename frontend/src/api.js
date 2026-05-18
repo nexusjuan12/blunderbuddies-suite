@@ -45,6 +45,7 @@ export const api = {
       body: JSON.stringify({ shots }),
     }),
   updateShot: (id, payload) => request(`/shots/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  splitShot: (id, payload) => request(`/shots/${id}/split`, { method: "POST", body: JSON.stringify(payload) }),
   getShotProduction: (shotId) => request(`/shots/${shotId}/production`),
   assistPrompt: (shotId, payload) =>
     request(`/shots/${shotId}/prompt-assist`, { method: "POST", body: JSON.stringify(payload) }),

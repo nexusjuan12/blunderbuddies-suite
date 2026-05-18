@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
-import { API_BASE } from "../api.js";
+import { API_BASE, api } from "../api.js";
 
 function assetUrl(path) {
   if (!path) return "";
@@ -50,6 +50,18 @@ function ImageInputSlots({ slots = [], onChange, libraryEntries = [], previousIm
     });
   }
 
+  async function uploadFresh(index, file) {
+    if (!file) return;
+    const upload = await api.uploadLibraryAsset(file);
+    updateSlot(index, {
+      source_type: "upload",
+      library_entry_id: null,
+      file_path: upload.file_path,
+      url: upload.file_path,
+      label: slots[index].label || upload.source_filename || "uploaded image",
+    });
+  }
+
   const orderChanged = slots.some((slot) => slot.order_changed);
 
   return (
@@ -75,6 +87,10 @@ function ImageInputSlots({ slots = [], onChange, libraryEntries = [], previousIm
               onChange={(event) => updateSlot(index, { file_path: event.target.value, url: event.target.value, source_type: "upload" })}
               placeholder="asset path or URL"
             />
+            <label className="file-button slot-upload">
+              Upload Fresh
+              <input type="file" accept="image/*" onChange={(event) => uploadFresh(index, event.target.files?.[0])} />
+            </label>
             <div className="button-row compact">
               <button type="button" onClick={() => moveSlot(index, -1)} disabled={index === 0}>
                 Up
