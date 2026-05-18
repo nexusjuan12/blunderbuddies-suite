@@ -1,4 +1,5 @@
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload } from "lucide-react";
+import { useState } from "react";
 import { API_BASE, api } from "../api.js";
 
 function assetUrl(path) {
@@ -7,6 +8,8 @@ function assetUrl(path) {
 }
 
 function ImageInputSlots({ slots = [], onChange, libraryEntries = [], previousImage }) {
+  const [quickLibraryId, setQuickLibraryId] = useState("");
+
   function updateSlot(index, patch) {
     onChange(slots.map((slot, slotIndex) => (slotIndex === index ? { ...slot, ...patch } : slot)));
   }
@@ -62,12 +65,78 @@ function ImageInputSlots({ slots = [], onChange, libraryEntries = [], previousIm
     });
   }
 
+  async function uploadFreshSlot(file) {
+    if (!file || slots.length >= 14) return;
+    const upload = await api.uploadLibraryAsset(file);
+    addSlot({
+      source_type: "upload",
+      library_entry_id: null,
+      file_path: upload.file_path,
+      url: upload.file_path,
+      label: upload.source_filename || "uploaded image",
+    });
+  }
+
+  function addLibrarySlot(entryId) {
+    const entry = libraryEntries.find((item) => item.id === Number(entryId));
+    if (!entry || slots.length >= 14) return;
+    addSlot({
+      source_type: "library",
+      library_entry_id: entry.id,
+      file_path: entry.asset_path,
+      url: entry.asset_path,
+      label: entry.title,
+    });
+    setQuickLibraryId("");
+  }
+
   const orderChanged = slots.some((slot) => slot.order_changed);
 
   return (
     <div className="input-slots">
+      <div className="slot-toolbar">
+        <div>
+          <h3>Image Inputs</h3>
+          <p>Optional ordered reference images. Prompts refer to these as image 1, image 2, and so on.</p>
+        </div>
+        <div className="slot-actions">
+          <label className="file-button">
+            <Upload size={16} />
+            Upload Image
+            <input type="file" accept="image/*" onChange={(event) => uploadFreshSlot(event.target.files?.[0])} />
+          </label>
+          <select value={quickLibraryId} onChange={(event) => addLibrarySlot(event.target.value)}>
+            <option value="">Add from Library</option>
+            {libraryEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.title}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={() => addSlot()} disabled={slots.length >= 14}>
+            <Plus size={16} />
+            Empty Slot
+          </button>
+          {previousImage && (
+            <button
+              type="button"
+              onClick={() =>
+                addSlot({
+                  label: previousImage.frame_type === "first" ? "approved first frame" : "previous generation",
+                  source_type: "previous_generation",
+                  file_path: previousImage.file_path,
+                  url: previousImage.file_path,
+                })
+              }
+              disabled={slots.length >= 14}
+            >
+              Use Previous
+            </button>
+          )}
+        </div>
+      </div>
       {orderChanged && <div className="notice">Slot order changed - check your prompt references.</div>}
-      {slots.length === 0 && <div className="empty-state">No image input slots.</div>}
+      {slots.length === 0 && <div className="empty-state">No reference images selected. Upload one, add from Library, or generate without references.</div>}
       {slots.map((slot, index) => (
         <div className="slot-row" key={slot.id || index}>
           <span className="slot-index">{index + 1}</span>
@@ -105,28 +174,6 @@ function ImageInputSlots({ slots = [], onChange, libraryEntries = [], previousIm
           </div>
         </div>
       ))}
-      <div className="button-row">
-        <button type="button" onClick={() => addSlot()} disabled={slots.length >= 14}>
-          <Plus size={16} />
-          Add Slot
-        </button>
-        {previousImage && (
-          <button
-            type="button"
-            onClick={() =>
-              addSlot({
-                label: previousImage.frame_type === "first" ? "approved first frame" : "previous generation",
-                source_type: "previous_generation",
-                file_path: previousImage.file_path,
-                url: previousImage.file_path,
-              })
-            }
-            disabled={slots.length >= 14}
-          >
-            Use Previous Generation
-          </button>
-        )}
-      </div>
     </div>
   );
 }

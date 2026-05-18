@@ -317,6 +317,35 @@ p {
   gap: 8px;
 }
 
+.slot-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, auto);
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.slot-toolbar h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.slot-toolbar p {
+  margin: 0;
+}
+
+.slot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.slot-actions select {
+  width: auto;
+  min-width: 180px;
+}
+
 .slot-fields img {
   width: 100%;
   max-height: 130px;
@@ -648,7 +677,12 @@ p {
 
   .nav-tabs,
   .episode-switcher,
-  .button-row {
+  .button-row,
+  .slot-actions {
     justify-content: flex-start;
+  }
+
+  .slot-toolbar {
+    grid-template-columns: 1fr;
   }
 }
