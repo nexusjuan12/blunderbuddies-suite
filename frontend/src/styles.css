@@ -192,6 +192,7 @@ p {
 }
 
 .entry-card,
+.shot-plan-card,
 .shot-tile,
 .asset-card,
 .slot-row {
@@ -292,6 +293,70 @@ p {
 .empty-state,
 .muted,
 .asset-path {
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.asset-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.asset-preview img {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #0d0f12;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.button-row.compact button {
+  min-height: 30px;
+  padding: 5px 8px;
+}
+
+.shot-plan-list {
+  display: grid;
+  gap: 14px;
+}
+
+.shot-card-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(180px, 0.7fr);
+  gap: 12px;
+}
+
+.shot-card-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.checkbox-label {
+  flex-direction: row !important;
+  align-items: center;
+}
+
+.checkbox-label input {
+  width: auto;
+}
+
+.notice {
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: rgba(88, 184, 141, 0.08);
   color: var(--muted);
 }
 
@@ -311,16 +376,21 @@ p {
   padding: 10px 12px;
 }
 
+.inline-error {
+  margin: 0 0 14px;
+}
+
 @media (max-width: 1050px) {
   .topbar,
   .page-grid,
-  .two-column {
+  .two-column,
+  .shot-card-grid {
     grid-template-columns: 1fr;
   }
 
   .nav-tabs,
-  .episode-switcher {
+  .episode-switcher,
+  .button-row {
     justify-content: flex-start;
   }
 }
-

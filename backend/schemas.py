@@ -58,3 +58,57 @@ class LoreEntryRead(LoreEntryBase):
     created_at: datetime
     updated_at: datetime
 
+
+class ShotBase(BaseModel):
+    order_index: int
+    description: str = ""
+    characters: list[str] = Field(default_factory=list)
+    setting: str = ""
+    mood: str = ""
+    has_dialogue: bool = False
+    music_notes: str = ""
+    status: str = "planned"
+    generation_started: bool = False
+    locked: bool = False
+
+
+class ShotPlanInput(BaseModel):
+    order_index: int
+    description: str = ""
+    characters: list[str] = Field(default_factory=list)
+    setting: str = ""
+    mood: str = ""
+    has_dialogue: bool = False
+    music_notes: str = ""
+
+
+class BeginProductionRequest(BaseModel):
+    shots: list[ShotPlanInput]
+
+
+class ShotUpdate(BaseModel):
+    order_index: int | None = None
+    description: str | None = None
+    characters: list[str] | None = None
+    setting: str | None = None
+    mood: str | None = None
+    has_dialogue: bool | None = None
+    music_notes: str | None = None
+    status: str | None = None
+    generation_started: bool | None = None
+    locked: bool | None = None
+
+
+class ShotRead(ShotBase):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    episode_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class UploadRead(BaseModel):
+    file_path: str
+    url: str
+

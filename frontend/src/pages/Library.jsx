@@ -1,6 +1,6 @@
 import { Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { api } from "../api.js";
+import { API_BASE, api } from "../api.js";
 
 const entryTypes = ["character", "setting", "lore", "script", "reference"];
 
@@ -15,6 +15,7 @@ function Library() {
     tags: "",
     asset_path: "",
   });
+  const [assetFile, setAssetFile] = useState(null);
 
   async function loadEntries() {
     setEntries(await api.listLibrary({ q: query, entry_type: typeFilter }));
@@ -27,14 +28,20 @@ function Library() {
   async function createEntry(event) {
     event.preventDefault();
     if (!draft.title.trim()) return;
+    let assetPath = draft.asset_path || null;
+    if (assetFile) {
+      const upload = await api.uploadLibraryAsset(assetFile);
+      assetPath = upload.file_path;
+    }
     await api.createLibraryEntry({
       entry_type: draft.entry_type,
       title: draft.title.trim(),
       content: draft.content,
       tags: draft.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
-      asset_path: draft.asset_path || null,
+      asset_path: assetPath,
     });
     setDraft({ entry_type: "character", title: "", content: "", tags: "", asset_path: "" });
+    setAssetFile(null);
     await loadEntries();
   }
 
@@ -100,7 +107,12 @@ function Library() {
                 }
                 placeholder="tags"
               />
-              {entry.asset_path && <div className="asset-path">{entry.asset_path}</div>}
+              {entry.asset_path && (
+                <div className="asset-preview">
+                  <img src={entry.asset_path.startsWith("/") ? `${API_BASE}${entry.asset_path}` : entry.asset_path} alt={entry.title} />
+                  <div className="asset-path">{entry.asset_path}</div>
+                </div>
+              )}
             </article>
           ))}
           {entries.length === 0 && <div className="empty-state">No library entries yet.</div>}
@@ -136,6 +148,10 @@ function Library() {
             Asset path
             <input value={draft.asset_path} onChange={(event) => setDraft({ ...draft, asset_path: event.target.value })} />
           </label>
+          <label>
+            Upload image
+            <input type="file" accept="image/*" onChange={(event) => setAssetFile(event.target.files?.[0] || null)} />
+          </label>
           <button type="submit">
             <Plus size={16} />
             Create
@@ -147,4 +163,3 @@ function Library() {
 }
 
 export default Library;
-

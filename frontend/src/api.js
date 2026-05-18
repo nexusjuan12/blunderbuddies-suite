@@ -1,11 +1,14 @@
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers: isFormData
+      ? options.headers || {}
+      : {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
     ...options,
   });
 
@@ -26,6 +29,14 @@ export const api = {
   createEpisode: (payload) => request("/episodes", { method: "POST", body: JSON.stringify(payload) }),
   updateEpisode: (id, payload) => request(`/episodes/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteEpisode: (id) => request(`/episodes/${id}`, { method: "DELETE" }),
+  generateShotBreakdown: (episodeId) => request(`/episodes/${episodeId}/shot-breakdown`, { method: "POST" }),
+  listShots: (episodeId) => request(`/episodes/${episodeId}/shots`),
+  beginProduction: (episodeId, shots) =>
+    request(`/episodes/${episodeId}/shots/begin-production`, {
+      method: "POST",
+      body: JSON.stringify({ shots }),
+    }),
+  updateShot: (id, payload) => request(`/shots/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   listLibrary: ({ q = "", entry_type = "" } = {}) => {
     const params = new URLSearchParams();
     if (q) params.set("q", q);
@@ -36,5 +47,11 @@ export const api = {
   createLibraryEntry: (payload) => request("/library", { method: "POST", body: JSON.stringify(payload) }),
   updateLibraryEntry: (id, payload) => request(`/library/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteLibraryEntry: (id) => request(`/library/${id}`, { method: "DELETE" }),
+  uploadLibraryAsset: (file) => {
+    const body = new FormData();
+    body.append("file", file);
+    return request("/uploads/library", { method: "POST", body });
+  },
 };
 
+export { API_BASE };
