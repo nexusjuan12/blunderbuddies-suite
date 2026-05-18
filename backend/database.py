@@ -27,4 +27,14 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(ModelsBase.metadata.create_all)
-
+        if DATABASE_URL.startswith("sqlite"):
+            result = await conn.exec_driver_sql("PRAGMA table_info(lore_entries)")
+            existing_columns = {row[1] for row in result.fetchall()}
+            migrations = {
+                "asset_kind": "ALTER TABLE lore_entries ADD COLUMN asset_kind VARCHAR(32)",
+                "mime_type": "ALTER TABLE lore_entries ADD COLUMN mime_type VARCHAR(255)",
+                "source_filename": "ALTER TABLE lore_entries ADD COLUMN source_filename VARCHAR(512)",
+            }
+            for column, statement in migrations.items():
+                if column not in existing_columns:
+                    await conn.exec_driver_sql(statement)

@@ -37,6 +37,9 @@ class LoreEntryBase(BaseModel):
     content: str = ""
     tags: list[str] = Field(default_factory=list)
     asset_path: str | None = None
+    asset_kind: str | None = None
+    mime_type: str | None = None
+    source_filename: str | None = None
 
 
 class LoreEntryCreate(LoreEntryBase):
@@ -49,6 +52,9 @@ class LoreEntryUpdate(BaseModel):
     content: str | None = None
     tags: list[str] | None = None
     asset_path: str | None = None
+    asset_kind: str | None = None
+    mime_type: str | None = None
+    source_filename: str | None = None
 
 
 class LoreEntryRead(LoreEntryBase):
@@ -111,4 +117,6 @@ class ShotRead(ShotBase):
 class UploadRead(BaseModel):
     file_path: str
     url: str
-
+    asset_kind: str
+    mime_type: str
+    source_filename: str | None = None

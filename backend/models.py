@@ -54,6 +54,9 @@ class LoreEntry(TimestampMixin, Base):
     content: Mapped[str] = mapped_column(Text, default="")
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     asset_path: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    asset_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_filename: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
 
 class MusicTrack(TimestampMixin, Base):
@@ -67,4 +70,3 @@ class MusicTrack(TimestampMixin, Base):
     notes: Mapped[str] = mapped_column(Text, default="")
 
     episode: Mapped[Episode] = relationship(back_populates="music_tracks")
-

@@ -55,6 +55,10 @@ Replicate image/video generation and Wan2GP/LTX manual workflows are planned aft
 
 The planned generation workflow uses ordered image input slots. Prompts refer to these slots by number, such as "the character from image 1" or "use image 2 as the background." Slot labels are for the creator only and are not sent as typed roles to the model.
 
+## Production Asset Library
+
+The Reference Library can store searchable production assets as entries with notes and tags. Current uploads support images, audio, and video, so reusable character references, voice samples, music, episode tracks, and occasional video references can live in the same catalog. Audio and video assets show browser preview controls when the file format is supported.
+
 ## Development Phases
 
 1. Project scaffold, backend database/models/routes, frontend nav/pages, episode CRUD, library CRUD
@@ -69,4 +73,3 @@ The planned generation workflow uses ordered image input slots. Prompts refer to
 ## License
 
 MIT
-

@@ -2,7 +2,49 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API_BASE, api } from "../api.js";
 
-const entryTypes = ["character", "setting", "lore", "script", "reference"];
+const entryTypes = ["character", "setting", "lore", "script", "reference", "voice", "music", "audio", "video"];
+
+function resolveAssetUrl(path) {
+  if (!path) return "";
+  return path.startsWith("/") ? `${API_BASE}${path}` : path;
+}
+
+function inferAssetKind(entry) {
+  if (entry.asset_kind) return entry.asset_kind;
+  if (entry.mime_type?.startsWith("image/")) return "image";
+  if (entry.mime_type?.startsWith("audio/")) return "audio";
+  if (entry.mime_type?.startsWith("video/")) return "video";
+  const path = entry.asset_path || "";
+  if (/\.(png|jpe?g|webp|gif)$/i.test(path)) return "image";
+  if (/\.(wav|mp3|ogg|flac|m4a|aac)$/i.test(path)) return "audio";
+  if (/\.(mp4|mov|webm|mkv)$/i.test(path)) return "video";
+  return "file";
+}
+
+function AssetPreview({ entry }) {
+  if (!entry.asset_path) return null;
+  const url = resolveAssetUrl(entry.asset_path);
+  const kind = inferAssetKind(entry);
+
+  return (
+    <div className="asset-preview">
+      {kind === "image" && <img src={url} alt={entry.title} />}
+      {kind === "audio" && <audio src={url} controls />}
+      {kind === "video" && <video src={url} controls />}
+      {kind === "file" && (
+        <a href={url} target="_blank" rel="noreferrer">
+          Open asset
+        </a>
+      )}
+      <div className="asset-meta">
+        <span>{entry.asset_kind || kind}</span>
+        {entry.mime_type && <span>{entry.mime_type}</span>}
+        {entry.source_filename && <span>{entry.source_filename}</span>}
+      </div>
+      <div className="asset-path">{entry.asset_path}</div>
+    </div>
+  );
+}
 
 function Library() {
   const [entries, setEntries] = useState([]);
@@ -14,6 +56,9 @@ function Library() {
     content: "",
     tags: "",
     asset_path: "",
+    asset_kind: "",
+    mime_type: "",
+    source_filename: "",
   });
   const [assetFile, setAssetFile] = useState(null);
 
@@ -29,9 +74,19 @@ function Library() {
     event.preventDefault();
     if (!draft.title.trim()) return;
     let assetPath = draft.asset_path || null;
+    let assetMetadata = {
+      asset_kind: draft.asset_kind || null,
+      mime_type: draft.mime_type || null,
+      source_filename: draft.source_filename || null,
+    };
     if (assetFile) {
       const upload = await api.uploadLibraryAsset(assetFile);
       assetPath = upload.file_path;
+      assetMetadata = {
+        asset_kind: upload.asset_kind,
+        mime_type: upload.mime_type,
+        source_filename: upload.source_filename,
+      };
     }
     await api.createLibraryEntry({
       entry_type: draft.entry_type,
@@ -39,8 +94,18 @@ function Library() {
       content: draft.content,
       tags: draft.tags.split(",").map((tag) => tag.trim()).filter(Boolean),
       asset_path: assetPath,
+      ...assetMetadata,
     });
-    setDraft({ entry_type: "character", title: "", content: "", tags: "", asset_path: "" });
+    setDraft({
+      entry_type: "character",
+      title: "",
+      content: "",
+      tags: "",
+      asset_path: "",
+      asset_kind: "",
+      mime_type: "",
+      source_filename: "",
+    });
     setAssetFile(null);
     await loadEntries();
   }
@@ -61,7 +126,7 @@ function Library() {
         <div className="section-header">
           <div>
             <h1>Reference Library</h1>
-            <p>Characters, settings, lore, scripts, and reusable visual references.</p>
+            <p>Characters, settings, lore, scripts, voice samples, music, and reusable production assets.</p>
           </div>
           <div className="filter-row">
             <label className="search-box">
@@ -107,12 +172,7 @@ function Library() {
                 }
                 placeholder="tags"
               />
-              {entry.asset_path && (
-                <div className="asset-preview">
-                  <img src={entry.asset_path.startsWith("/") ? `${API_BASE}${entry.asset_path}` : entry.asset_path} alt={entry.title} />
-                  <div className="asset-path">{entry.asset_path}</div>
-                </div>
-              )}
+              <AssetPreview entry={entry} />
             </article>
           ))}
           {entries.length === 0 && <div className="empty-state">No library entries yet.</div>}
@@ -149,9 +209,10 @@ function Library() {
             <input value={draft.asset_path} onChange={(event) => setDraft({ ...draft, asset_path: event.target.value })} />
           </label>
           <label>
-            Upload image
-            <input type="file" accept="image/*" onChange={(event) => setAssetFile(event.target.files?.[0] || null)} />
+            Upload asset
+            <input type="file" accept="image/*,audio/*,video/*" onChange={(event) => setAssetFile(event.target.files?.[0] || null)} />
           </label>
+          {assetFile && <div className="selected-file">{assetFile.name}</div>}
           <button type="submit">
             <Plus size={16} />
             Create

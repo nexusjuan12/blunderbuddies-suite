@@ -29,6 +29,24 @@ UPLOAD_ROOT = Path(os.getenv("UPLOADS_DIR", "./uploads")).resolve()
 LIBRARY_UPLOAD_DIR = UPLOAD_ROOT / "library"
 LIBRARY_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+ALLOWED_ASSET_EXTENSIONS = {
+    "image": {".png", ".jpg", ".jpeg", ".webp", ".gif"},
+    "audio": {".wav", ".mp3", ".ogg", ".flac", ".m4a", ".aac"},
+    "video": {".mp4", ".mov", ".webm", ".mkv"},
+}
+
+
+def classify_asset(content_type: str | None, filename: str | None) -> tuple[str, str]:
+    content_type = content_type or "application/octet-stream"
+    suffix = Path(filename or "").suffix.lower()
+    if content_type.startswith("image/") or suffix in ALLOWED_ASSET_EXTENSIONS["image"]:
+        return "image", suffix if suffix in ALLOWED_ASSET_EXTENSIONS["image"] else ".png"
+    if content_type.startswith("audio/") or suffix in ALLOWED_ASSET_EXTENSIONS["audio"]:
+        return "audio", suffix if suffix in ALLOWED_ASSET_EXTENSIONS["audio"] else ".wav"
+    if content_type.startswith("video/") or suffix in ALLOWED_ASSET_EXTENSIONS["video"]:
+        return "video", suffix if suffix in ALLOWED_ASSET_EXTENSIONS["video"] else ".mp4"
+    raise HTTPException(status_code=400, detail="Library uploads support image, audio, and video files")
+
 app = FastAPI(title="Blunderbuddies Production Suite")
 
 app.add_middleware(
@@ -52,20 +70,23 @@ async def health() -> dict[str, str]:
 
 @app.post("/uploads/library", response_model=UploadRead, status_code=201)
 async def upload_library_asset(file: UploadFile = File(...)) -> dict[str, str]:
-    if not file.content_type or not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="Only image uploads are supported for library assets")
-
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
-        suffix = ".png"
+    asset_kind, suffix = classify_asset(file.content_type, file.filename)
 
     filename = f"{uuid4().hex}{suffix}"
-    destination = LIBRARY_UPLOAD_DIR / filename
+    asset_dir = LIBRARY_UPLOAD_DIR / asset_kind
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    destination = asset_dir / filename
     with destination.open("wb") as output:
         shutil.copyfileobj(file.file, output)
 
-    public_path = f"/uploads/library/{filename}"
-    return {"file_path": public_path, "url": public_path}
+    public_path = f"/uploads/library/{asset_kind}/{filename}"
+    return {
+        "file_path": public_path,
+        "url": public_path,
+        "asset_kind": asset_kind,
+        "mime_type": file.content_type or "application/octet-stream",
+        "source_filename": file.filename,
+    }
 
 
 @app.get("/episodes", response_model=list[EpisodeRead])
@@ -195,7 +216,13 @@ async def list_library(
         stmt = stmt.where(LoreEntry.entry_type == entry_type)
     if q:
         like = f"%{q}%"
-        stmt = stmt.where(or_(LoreEntry.title.ilike(like), LoreEntry.content.ilike(like)))
+        stmt = stmt.where(
+            or_(
+                LoreEntry.title.ilike(like),
+                LoreEntry.content.ilike(like),
+                LoreEntry.source_filename.ilike(like),
+            )
+        )
     result = await session.execute(stmt.order_by(LoreEntry.updated_at.desc(), LoreEntry.id.desc()))
     return list(result.scalars())
 
