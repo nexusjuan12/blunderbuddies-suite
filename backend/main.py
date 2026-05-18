@@ -16,6 +16,8 @@ from schemas import (
     AudioLineRead,
     AudioLineUpdate,
     BeginProductionRequest,
+    ChatRead,
+    ChatRequest,
     EpisodeCreate,
     EpisodeRead,
     EpisodeUpdate,
@@ -39,6 +41,7 @@ from schemas import (
 )
 from services.llm_service import generate_image_prompt, generate_shot_breakdown, generate_video_prompt
 from services.audio_service import pad_audio
+from services import replicate_service
 
 UPLOAD_ROOT = Path(os.getenv("UPLOADS_DIR", "./uploads")).resolve()
 LIBRARY_UPLOAD_DIR = UPLOAD_ROOT / "library"
@@ -96,6 +99,27 @@ def copy_asset(file_path: str, destination: Path) -> str:
     shutil.copy2(source, destination)
     return destination.name
 
+
+def generation_mode() -> str:
+    return os.getenv("GENERATION_MODE", "mock").lower()
+
+
+def asset_for_replicate(file_path: str) -> str:
+    if not file_path:
+        return ""
+    if file_path.startswith("http://") or file_path.startswith("https://"):
+        return file_path
+    source = resolve_asset_path(file_path)
+    if source is None:
+        raise HTTPException(status_code=400, detail=f"Asset is not available locally: {file_path}")
+    return replicate_service.upload_reference_file(source)
+
+
+def save_remote_generated_asset(url: str, folder: str, suffix: str) -> str:
+    destination = UPLOAD_ROOT / "generated" / folder / f"{uuid4().hex}{suffix}"
+    replicate_service.download_output_to_path(url, destination)
+    return public_upload_path(destination)
+
 app = FastAPI(title="Blunderbuddies Production Suite")
 
 app.add_middleware(
@@ -115,6 +139,42 @@ async def on_startup() -> None:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/config")
+async def config() -> dict[str, str]:
+    return {
+        "llm_provider": os.getenv("LLM_PROVIDER", "mock"),
+        "generation_mode": os.getenv("GENERATION_MODE", "mock"),
+        "openai_model": os.getenv("OPENAI_MODEL", "gpt-4o"),
+    }
+
+
+@app.post("/assistant/chat", response_model=ChatRead)
+async def assistant_chat(payload: ChatRequest, session: AsyncSession = Depends(get_session)) -> dict[str, str]:
+    entries = []
+    if payload.context_entry_ids:
+        result = await session.execute(select(LoreEntry).where(LoreEntry.id.in_(payload.context_entry_ids)))
+        entries = [
+            {
+                "title": entry.title,
+                "content": entry.content,
+                "entry_type": entry.entry_type,
+                "tags": entry.tags,
+            }
+            for entry in result.scalars()
+        ]
+    from services.llm_service import generate_chat_response
+
+    try:
+        response = await generate_chat_response(
+            payload.system_prompt,
+            [message.model_dump() for message in payload.messages],
+            entries,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Assistant request failed: {exc}") from exc
+    return {"response": response}
 
 
 @app.post("/uploads/library", response_model=UploadRead, status_code=201)
@@ -185,7 +245,10 @@ async def create_shot_breakdown(episode_id: int, session: AsyncSession = Depends
         raise HTTPException(status_code=404, detail="Episode not found")
     if episode.status not in {"script_locked", "planning", "in_production"}:
         raise HTTPException(status_code=400, detail="Lock the script before generating a shot breakdown")
-    return generate_shot_breakdown(episode.script_text)
+    try:
+        return await generate_shot_breakdown(episode.script_text)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Shot breakdown failed: {exc}") from exc
 
 
 @app.get("/episodes/{episode_id}/shots", response_model=list[ShotRead])
@@ -290,9 +353,9 @@ async def assist_prompt(shot_id: int, payload: PromptAssistRequest, session: Asy
         "music_notes": shot.music_notes,
     }
     if payload.target_type == "video":
-        prompt = generate_video_prompt(shot_payload)
+        prompt = await generate_video_prompt(shot_payload)
     else:
-        prompt = generate_image_prompt(
+        prompt = await generate_image_prompt(
             shot_payload,
             payload.frame_type or "first",
             [slot.model_dump() for slot in payload.input_slots],
@@ -318,15 +381,30 @@ async def generate_mock_image(
     if payload.frame_type == "first":
         shot.status = "frames_in_progress"
 
+    provider = generation_mode()
+    prediction_id = f"mock-image-{uuid4().hex[:10]}"
+    file_path = f"/mock-assets/sample-{payload.frame_type}.svg"
+    if provider == "replicate":
+        try:
+            image_inputs = [asset_for_replicate(slot.file_path or slot.url or "") for slot in payload.input_slots]
+            image_inputs = [item for item in image_inputs if item]
+            output_url = replicate_service.generate_image(payload.prompt, image_inputs, payload.resolution, payload.aspect_ratio)
+            file_path = save_remote_generated_asset(output_url, "images", ".png")
+            prediction_id = output_url
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Replicate image generation failed: {exc}") from exc
+    elif provider != "mock":
+        raise HTTPException(status_code=400, detail="GENERATION_MODE must be mock or replicate")
+
     image = Image(
         shot_id=shot_id,
         frame_type=payload.frame_type,
         prompt=payload.prompt,
         resolution=payload.resolution,
         aspect_ratio=payload.aspect_ratio,
-        provider="mock",
-        prediction_id=f"mock-image-{uuid4().hex[:10]}",
-        file_path=f"/mock-assets/sample-{payload.frame_type}.svg",
+        provider=provider,
+        prediction_id=prediction_id,
+        file_path=file_path,
         approved=False,
         input_slots=[slot.model_dump() for slot in payload.input_slots],
     )
@@ -334,8 +412,8 @@ async def generate_mock_image(
         shot_id=shot_id,
         target_type=f"image_{payload.frame_type}",
         prompt=payload.prompt,
-        provider="mock",
-        model="mock-generation",
+        provider=provider,
+        model="replicate" if provider == "replicate" else "mock-generation",
     )
     session.add_all([image, history])
     await session.commit()
@@ -388,11 +466,43 @@ async def generate_mock_video(
     last_result = await session.execute(
         select(Image).where(Image.shot_id == shot_id, Image.frame_type == "last", Image.approved.is_(True))
     )
-    if first_result.scalar_one_or_none() is None or last_result.scalar_one_or_none() is None:
+    first_frame = first_result.scalar_one_or_none()
+    last_frame = last_result.scalar_one_or_none()
+    if first_frame is None or last_frame is None:
         raise HTTPException(status_code=400, detail="Approve first and last frames before generating video")
 
     seed = payload.seed or int(uuid4().int % 2_147_483_647)
+    if payload.upgrade_from_video_id:
+        previous = await session.get(Video, payload.upgrade_from_video_id)
+        if previous is None or previous.shot_id != shot_id:
+            raise HTTPException(status_code=404, detail="Source draft video not found")
+        seed = previous.seed or seed
+
     shot.status = "video_in_progress"
+    provider = generation_mode()
+    prediction_id = f"mock-video-{uuid4().hex[:10]}"
+    file_path = ""
+    if provider == "replicate":
+        try:
+            image_url = asset_for_replicate(first_frame.file_path)
+            audio_url = asset_for_replicate(payload.audio_url) if payload.audio_url else ""
+            output_url = replicate_service.generate_video(
+                payload.prompt,
+                image_url,
+                audio_url,
+                payload.duration_seconds,
+                payload.resolution,
+                payload.fps,
+                payload.draft_mode,
+                seed,
+            )
+            file_path = save_remote_generated_asset(output_url, "videos", ".mp4")
+            prediction_id = output_url
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=f"Replicate video generation failed: {exc}") from exc
+    elif provider != "mock":
+        raise HTTPException(status_code=400, detail="GENERATION_MODE must be mock or replicate")
+
     video = Video(
         shot_id=shot_id,
         prompt=payload.prompt,
@@ -402,16 +512,16 @@ async def generate_mock_video(
         resolution=payload.resolution,
         draft_mode=payload.draft_mode,
         seed=seed,
-        provider="mock",
-        prediction_id=f"mock-video-{uuid4().hex[:10]}",
-        file_path="",
+        provider=provider,
+        prediction_id=prediction_id,
+        file_path=file_path,
         approved=False,
     )
     history = PromptHistory(
         shot_id=shot_id,
         target_type="video",
         prompt=payload.prompt,
-        provider="mock",
+        provider=provider,
         model=payload.model,
     )
     session.add_all([video, history])

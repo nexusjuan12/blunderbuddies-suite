@@ -203,7 +203,7 @@ function ShotWorkshop({ episode }) {
         <div className="section-header">
           <div>
             <h1>Shot Workshop</h1>
-            <p>Mock first frame, last frame, and video approval workflow.</p>
+            <p>First frame, last frame, and video approval workflow.</p>
           </div>
           {activeShot && <span className="badge">{currentStep}</span>}
         </div>
@@ -273,7 +273,7 @@ function ShotWorkshop({ episode }) {
                     <option>4:3</option>
                   </select>
                   <button type="button" onClick={generateImage} disabled={loading || !imagePrompt.trim()}>
-                    Generate Mock Image
+                    Generate Image
                   </button>
                   <button type="button" onClick={approveSelectedImage} disabled={loading || !selectedImageId}>
                     <Check size={16} />
@@ -313,7 +313,7 @@ function ShotWorkshop({ episode }) {
                     </select>
                   </label>
                   <button type="button" onClick={generateVideo} disabled={loading || !videoPrompt.trim()}>
-                    Generate Mock Video
+                    Generate Video
                   </button>
                   <button type="button" onClick={approveSelectedVideo} disabled={loading || !selectedVideoId}>
                     <Check size={16} />
@@ -328,7 +328,7 @@ function ShotWorkshop({ episode }) {
                       className={`video-result ${selectedVideoId === video.id ? "selected" : ""}`}
                       onClick={() => setSelectedVideoId(video.id)}
                     >
-                      <div className="mock-video-frame">MOCK VIDEO</div>
+                      {video.file_path ? <video src={urlFor(video.file_path)} controls /> : <div className="mock-video-frame">MOCK VIDEO</div>}
                       <span>{video.duration_seconds}s, {video.fps}fps, seed {video.seed}</span>
                       {video.approved && <span className="badge">approved</span>}
                     </button>
@@ -347,7 +347,9 @@ function ShotWorkshop({ episode }) {
             <div className="approved-stack">
               {firstApproved && <img src={urlFor(firstApproved.file_path)} alt="Approved first frame" />}
               {lastApproved && <img src={urlFor(lastApproved.file_path)} alt="Approved last frame" />}
-              {approvedVideo && <div className="mock-video-frame">APPROVED MOCK VIDEO</div>}
+              {approvedVideo && (
+                approvedVideo.file_path ? <video src={urlFor(approvedVideo.file_path)} controls /> : <div className="mock-video-frame">APPROVED MOCK VIDEO</div>
+              )}
               {!firstApproved && <div className="empty-state">No approved first frame yet.</div>}
             </div>
             <h2>Prompt History</h2>

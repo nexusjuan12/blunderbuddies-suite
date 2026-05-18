@@ -32,6 +32,8 @@ async function upload(path, file) {
 
 export const api = {
   listEpisodes: () => request("/episodes"),
+  getConfig: () => request("/config"),
+  chat: (payload) => request("/assistant/chat", { method: "POST", body: JSON.stringify(payload) }),
   createEpisode: (payload) => request("/episodes", { method: "POST", body: JSON.stringify(payload) }),
   updateEpisode: (id, payload) => request(`/episodes/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
   deleteEpisode: (id) => request(`/episodes/${id}`, { method: "DELETE" }),

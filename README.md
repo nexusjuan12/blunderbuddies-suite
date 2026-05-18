@@ -41,6 +41,8 @@ OPENAI_BASE_URL=https://api.openai.com/v1
 LLM_PROVIDER=openai
 ```
 
+Assistant chat, prompt assist, and shot breakdown use the provider selected by `LLM_PROVIDER`.
+
 For local OpenAI-compatible servers such as Ollama, LM Studio, vLLM, or text-generation-webui:
 
 ```env
@@ -50,6 +52,15 @@ LLM_PROVIDER=local
 ```
 
 Replicate image/video generation and Wan2GP/LTX manual workflows are planned after the mock shot workflow is complete.
+
+For Replicate image/video generation:
+
+```env
+REPLICATE_API_TOKEN=
+GENERATION_MODE=replicate
+```
+
+When `GENERATION_MODE=replicate`, image generation uses `google/nano-banana-pro` and video generation uses `prunaai/p-video`. Local uploaded reference images are uploaded to Replicate as temporary file inputs before model execution.
 
 ## Image Input Slots
 

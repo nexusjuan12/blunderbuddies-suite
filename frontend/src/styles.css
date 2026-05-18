@@ -388,7 +388,9 @@ p {
 }
 
 .asset-card img,
-.approved-stack img {
+.approved-stack img,
+.approved-stack video,
+.video-result video {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;

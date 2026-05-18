@@ -157,6 +157,8 @@ class VideoGenerateRequest(BaseModel):
     resolution: str = "720p"
     draft_mode: bool = True
     seed: int | None = None
+    audio_url: str | None = None
+    upgrade_from_video_id: int | None = None
 
 
 class VideoRead(BaseModel):
@@ -207,6 +209,21 @@ class PromptAssistRequest(BaseModel):
 
 class PromptAssistRead(BaseModel):
     prompt: str
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    system_prompt: str
+    messages: list[ChatMessage]
+    context_entry_ids: list[int] = Field(default_factory=list)
+
+
+class ChatRead(BaseModel):
+    response: str
 
 
 class AudioLineUpdate(BaseModel):
