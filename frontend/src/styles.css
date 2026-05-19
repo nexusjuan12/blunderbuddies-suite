@@ -512,6 +512,11 @@ p {
   border-radius: 6px;
 }
 
+.approved-asset {
+  display: grid;
+  gap: 8px;
+}
+
 .video-result {
   display: grid;
   gap: 8px;

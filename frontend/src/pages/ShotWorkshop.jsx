@@ -107,6 +107,25 @@ function ShotWorkshop({ episode }) {
     setSelectedImageId(image.id);
   }
 
+  async function reviseApprovedImage(image) {
+    if (!image) return;
+    if (currentStep !== "complete") {
+      restoreImageState(image);
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      await api.reopenShot(image.shot_id);
+      await refreshActive();
+      restoreImageState(image);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function restoreVideoState(video) {
     setSelectedVideoId(video.id);
     setVideoPrompt(video.prompt || "");
@@ -587,8 +606,22 @@ function ShotWorkshop({ episode }) {
             </div>
             <h2>Approved Assets</h2>
             <div className="approved-stack">
-              {firstApproved && <img src={urlFor(firstApproved.file_path)} alt="Approved first frame" />}
-              {lastApproved && <img src={urlFor(lastApproved.file_path)} alt="Approved last frame" />}
+              {firstApproved && (
+                <div className="approved-asset">
+                  <img src={urlFor(firstApproved.file_path)} alt="Approved first frame" />
+                  <button type="button" onClick={() => reviseApprovedImage(firstApproved)} disabled={loading}>
+                    Revise First Frame
+                  </button>
+                </div>
+              )}
+              {lastApproved && (
+                <div className="approved-asset">
+                  <img src={urlFor(lastApproved.file_path)} alt="Approved last frame" />
+                  <button type="button" onClick={() => reviseApprovedImage(lastApproved)} disabled={loading}>
+                    Revise Last Frame
+                  </button>
+                </div>
+              )}
               {approvedVideo && (
                 approvedVideo.file_path ? <video src={urlFor(approvedVideo.file_path)} controls /> : <div className="mock-video-frame">APPROVED MOCK VIDEO</div>
               )}
