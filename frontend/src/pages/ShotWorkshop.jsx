@@ -29,6 +29,7 @@ function ShotWorkshop({ episode }) {
   const [videoDuration, setVideoDuration] = useState(4);
   const [fps, setFps] = useState(24);
   const [videoResolution, setVideoResolution] = useState("720p");
+  const [draftMode, setDraftMode] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [workshopNote, setWorkshopNote] = useState("");
@@ -41,6 +42,7 @@ function ShotWorkshop({ episode }) {
   const firstApproved = production.images.find((image) => image.frame_type === "first" && image.approved);
   const lastApproved = production.images.find((image) => image.frame_type === "last" && image.approved);
   const approvedVideo = production.videos.find((video) => video.approved);
+  const selectedVideo = production.videos.find((video) => video.id === selectedVideoId) || null;
   const activeImages = production.images.filter((image) => image.frame_type === frameType);
   const currentStep = approvedVideo ? "complete" : firstApproved ? "video" : "first";
 
@@ -278,8 +280,37 @@ function ShotWorkshop({ episode }) {
         duration_seconds: videoDuration,
         fps,
         resolution: videoResolution,
-        draft_mode: true,
+        draft_mode: draftMode,
       });
+      setSelectedVideoId(video.id);
+      await refreshActive();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function upgradeSelectedDraft() {
+    if (!activeShot || !selectedVideo || !selectedVideo.draft_mode) return;
+    setLoading(true);
+    setError("");
+    try {
+      const video = await api.generateVideo(activeShot.id, {
+        prompt: selectedVideo.prompt,
+        model: selectedVideo.model,
+        duration_seconds: selectedVideo.duration_seconds,
+        fps: selectedVideo.fps,
+        resolution: selectedVideo.resolution,
+        draft_mode: false,
+        seed: selectedVideo.seed,
+        upgrade_from_video_id: selectedVideo.id,
+      });
+      setDraftMode(false);
+      setVideoPrompt(selectedVideo.prompt);
+      setVideoDuration(selectedVideo.duration_seconds);
+      setFps(selectedVideo.fps);
+      setVideoResolution(selectedVideo.resolution);
       setSelectedVideoId(video.id);
       await refreshActive();
     } catch (err) {
@@ -449,8 +480,15 @@ function ShotWorkshop({ episode }) {
                       <option>1080p</option>
                     </select>
                   </label>
+                  <label className="checkbox-label">
+                    <input type="checkbox" checked={draftMode} onChange={(event) => setDraftMode(event.target.checked)} />
+                    Draft mode
+                  </label>
                   <button type="button" onClick={generateVideo} disabled={loading || !videoPrompt.trim()}>
-                    Generate Video
+                    Generate {draftMode ? "Draft" : "Final"}
+                  </button>
+                  <button type="button" onClick={upgradeSelectedDraft} disabled={loading || !selectedVideo?.draft_mode}>
+                    Upgrade to Final
                   </button>
                   <button type="button" onClick={approveSelectedVideo} disabled={loading || !selectedVideoId}>
                     <Check size={16} />
@@ -466,7 +504,7 @@ function ShotWorkshop({ episode }) {
                       onClick={() => setSelectedVideoId(video.id)}
                     >
                       {video.file_path ? <video src={urlFor(video.file_path)} controls /> : <div className="mock-video-frame">MOCK VIDEO</div>}
-                      <span>{video.duration_seconds}s, {video.fps}fps, seed {video.seed}</span>
+                      <span>{video.draft_mode ? "Draft" : "Final"} · {video.duration_seconds}s, {video.fps}fps, seed {video.seed}</span>
                       {video.approved && <span className="badge">approved</span>}
                     </button>
                   ))}
