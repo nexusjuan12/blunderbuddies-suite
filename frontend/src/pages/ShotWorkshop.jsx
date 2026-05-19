@@ -107,6 +107,15 @@ function ShotWorkshop({ episode }) {
     setSelectedImageId(image.id);
   }
 
+  function restoreVideoState(video) {
+    setSelectedVideoId(video.id);
+    setVideoPrompt(video.prompt || "");
+    setVideoDuration(video.duration_seconds || 4);
+    setFps(video.fps || 24);
+    setVideoResolution(video.resolution || "720p");
+    setDraftMode(Boolean(video.draft_mode));
+  }
+
   async function saveGeneratedImageToLibrary(image) {
     if (!image) return;
     setLoading(true);
@@ -270,12 +279,13 @@ function ShotWorkshop({ episode }) {
   }
 
   async function generateVideo() {
-    if (!activeShot || !videoPrompt.trim()) return;
+    const prompt = videoPrompt.trim() || selectedVideo?.prompt || "";
+    if (!activeShot || !prompt) return;
     setLoading(true);
     setError("");
     try {
       const video = await api.generateVideo(activeShot.id, {
-        prompt: videoPrompt,
+        prompt,
         model: "p-video",
         duration_seconds: videoDuration,
         fps,
@@ -341,6 +351,9 @@ function ShotWorkshop({ episode }) {
   if (!episode) {
     return <div className="empty-state">Create an episode and begin production to use the Shot Workshop.</div>;
   }
+
+  const canGenerateVideo = Boolean(videoPrompt.trim() || selectedVideo?.prompt);
+  const canUpgradeVideo = Boolean(selectedVideo?.draft_mode);
 
   return (
     <section className="shot-workshop">
@@ -484,10 +497,20 @@ function ShotWorkshop({ episode }) {
                     <input type="checkbox" checked={draftMode} onChange={(event) => setDraftMode(event.target.checked)} />
                     Draft mode
                   </label>
-                  <button type="button" onClick={generateVideo} disabled={loading || !videoPrompt.trim()}>
+                  <button
+                    type="button"
+                    onClick={generateVideo}
+                    disabled={loading || !canGenerateVideo}
+                    title={!canGenerateVideo ? "Write a video prompt or select an existing video to reuse its prompt." : ""}
+                  >
                     Generate {draftMode ? "Draft" : "Final"}
                   </button>
-                  <button type="button" onClick={upgradeSelectedDraft} disabled={loading || !selectedVideo?.draft_mode}>
+                  <button
+                    type="button"
+                    onClick={upgradeSelectedDraft}
+                    disabled={loading || !canUpgradeVideo}
+                    title={!canUpgradeVideo ? "Select a draft video first." : ""}
+                  >
                     Upgrade to Final
                   </button>
                   <button type="button" onClick={approveSelectedVideo} disabled={loading || !selectedVideoId}>
@@ -495,13 +518,16 @@ function ShotWorkshop({ episode }) {
                     Approve Shot
                   </button>
                 </div>
+                {!canUpgradeVideo && production.videos.length > 0 && (
+                  <div className="muted">Select a draft video to enable Upgrade to Final.</div>
+                )}
                 <div className="video-gallery">
                   {production.videos.map((video) => (
                     <button
                       type="button"
                       key={video.id}
                       className={`video-result ${selectedVideoId === video.id ? "selected" : ""}`}
-                      onClick={() => setSelectedVideoId(video.id)}
+                      onClick={() => restoreVideoState(video)}
                     >
                       {video.file_path ? <video src={urlFor(video.file_path)} controls /> : <div className="mock-video-frame">MOCK VIDEO</div>}
                       <span>{video.draft_mode ? "Draft" : "Final"} · {video.duration_seconds}s, {video.fps}fps, seed {video.seed}</span>
