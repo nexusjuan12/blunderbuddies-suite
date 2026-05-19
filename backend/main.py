@@ -623,6 +623,23 @@ async def approve_video(video_id: int, session: AsyncSession = Depends(get_sessi
     return video
 
 
+@app.post("/shots/{shot_id}/reopen", response_model=ShotRead)
+async def reopen_shot(shot_id: int, session: AsyncSession = Depends(get_session)) -> Shot:
+    shot = await session.get(Shot, shot_id)
+    if shot is None:
+        raise HTTPException(status_code=404, detail="Shot not found")
+
+    shot.locked = False
+    shot.status = "video_in_progress" if shot.generation_started else "planned"
+    existing_result = await session.execute(select(Video).where(Video.shot_id == shot_id))
+    for video in existing_result.scalars():
+        video.approved = False
+
+    await session.commit()
+    await session.refresh(shot)
+    return shot
+
+
 async def ensure_audio_lines(episode_id: int, session: AsyncSession) -> list[AudioLine]:
     shots_result = await session.execute(
         select(Shot).where(Shot.episode_id == episode_id, Shot.has_dialogue.is_(True)).order_by(Shot.order_index.asc())

@@ -44,7 +44,7 @@ function ShotWorkshop({ episode }) {
   const approvedVideo = production.videos.find((video) => video.approved);
   const selectedVideo = production.videos.find((video) => video.id === selectedVideoId) || null;
   const activeImages = production.images.filter((image) => image.frame_type === frameType);
-  const currentStep = approvedVideo ? "complete" : firstApproved ? "video" : "first";
+  const currentStep = activeShot?.status === "approved" ? "complete" : firstApproved ? "video" : "first";
 
   async function loadShots() {
     if (!episode) {
@@ -348,6 +348,21 @@ function ShotWorkshop({ episode }) {
     }
   }
 
+  async function reopenActiveShot() {
+    if (!activeShot) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api.reopenShot(activeShot.id);
+      setSelectedVideoId(null);
+      await refreshActive();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   if (!episode) {
     return <div className="empty-state">Create an episode and begin production to use the Shot Workshop.</div>;
   }
@@ -539,7 +554,12 @@ function ShotWorkshop({ episode }) {
             )}
 
             {currentStep === "complete" && (
-              <div className="empty-state">Shot approved. Select another shot from the canvas to revisit or continue.</div>
+              <div className="empty-state">
+                <p>Shot approved. Select another shot from the canvas to revisit or continue.</p>
+                <button type="button" onClick={reopenActiveShot} disabled={loading}>
+                  Reopen Shot
+                </button>
+              </div>
             )}
           </section>
 
