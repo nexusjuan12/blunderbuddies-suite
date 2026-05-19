@@ -32,6 +32,8 @@ from schemas import (
     MusicTrackUpdate,
     PromptAssistRead,
     PromptAssistRequest,
+    SaveImageToLibraryRead,
+    SaveImageToLibraryRequest,
     ShotRead,
     ShotProductionRead,
     ShotSplitRequest,
@@ -488,6 +490,36 @@ async def approve_image(image_id: int, session: AsyncSession = Depends(get_sessi
     await session.commit()
     await session.refresh(image)
     return image
+
+
+@app.post("/images/{image_id}/save-to-library", response_model=SaveImageToLibraryRead, status_code=201)
+async def save_image_to_library(
+    image_id: int,
+    payload: SaveImageToLibraryRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, LoreEntry]:
+    image = await session.get(Image, image_id)
+    if image is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+    shot = await session.get(Shot, image.shot_id)
+    if shot is None:
+        raise HTTPException(status_code=404, detail="Shot not found")
+    title = payload.title or f"Shot {shot.order_index:02d} {image.frame_type} frame"
+    tags = payload.tags or ["generated", f"shot-{shot.order_index:02d}", image.frame_type]
+    entry = LoreEntry(
+        entry_type="reference",
+        title=title,
+        content=f"Generated {image.frame_type} frame for shot {shot.order_index}: {shot.description}\n\nPrompt:\n{image.prompt}",
+        tags=tags,
+        asset_path=image.file_path,
+        asset_kind="image",
+        mime_type="image/png" if image.file_path.lower().endswith(".png") else "image/svg+xml",
+        source_filename=Path(image.file_path).name,
+    )
+    session.add(entry)
+    await session.commit()
+    await session.refresh(entry)
+    return {"entry": entry}
 
 
 @app.post("/shots/{shot_id}/videos/generate", response_model=VideoRead, status_code=201)

@@ -63,16 +63,16 @@ function ShotWorkshop({ episode }) {
     setProductionByShot((current) => ({ ...current, [shotId]: nextProduction }));
   }
 
+  async function loadLibraryImages() {
+    const entries = await api.listLibrary();
+    setLibraryImages(
+      entries.filter((entry) => entry.asset_path && (entry.asset_kind === "image" || /\.(png|jpe?g|webp|gif|svg)$/i.test(entry.asset_path))),
+    );
+  }
+
   useEffect(() => {
     loadShots().catch((err) => setError(err.message));
-    api
-      .listLibrary()
-      .then((entries) =>
-        setLibraryImages(
-          entries.filter((entry) => entry.asset_path && (entry.asset_kind === "image" || /\.(png|jpe?g|webp|gif)$/i.test(entry.asset_path))),
-        ),
-      )
-      .catch(console.error);
+    loadLibraryImages().catch(console.error);
   }, [episode?.id]);
 
   useEffect(() => {
@@ -96,6 +96,32 @@ function ShotWorkshop({ episode }) {
   async function refreshActive() {
     await loadShots();
     if (activeShotId) await loadProduction(activeShotId);
+  }
+
+  function restoreImageState(image) {
+    setFrameType(image.frame_type);
+    setImagePrompt(image.prompt || "");
+    setResolution(image.resolution || "1K");
+    setAspectRatio(image.aspect_ratio || "16:9");
+    setInputSlots((image.input_slots || []).map((slot, index) => ({ ...slot, slot_index: index + 1 })));
+    setSelectedImageId(image.id);
+  }
+
+  async function saveGeneratedImageToLibrary(image) {
+    if (!image) return;
+    setLoading(true);
+    setError("");
+    try {
+      await api.saveImageToLibrary(image.id, {
+        title: `Shot ${activeShot?.order_index || ""} ${image.frame_type} frame`.trim(),
+        tags: ["generated", image.frame_type, activeShot ? `shot-${activeShot.order_index}` : "shot"],
+      });
+      await loadLibraryImages();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function assistImagePrompt() {
@@ -384,7 +410,13 @@ function ShotWorkshop({ episode }) {
                     Approve Selected
                   </button>
                 </div>
-                <AssetGallery assets={activeImages} selectedId={selectedImageId} onSelect={setSelectedImageId} />
+                <AssetGallery
+                  assets={activeImages}
+                  selectedId={selectedImageId}
+                  onSelect={setSelectedImageId}
+                  onRestore={restoreImageState}
+                  onSaveToLibrary={saveGeneratedImageToLibrary}
+                />
               </div>
             )}
 

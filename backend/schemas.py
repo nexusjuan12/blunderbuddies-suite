@@ -154,6 +154,15 @@ class ImageRead(BaseModel):
     updated_at: datetime
 
 
+class SaveImageToLibraryRequest(BaseModel):
+    title: str | None = None
+    tags: list[str] = Field(default_factory=list)
+
+
+class SaveImageToLibraryRead(BaseModel):
+    entry: LoreEntryRead
+
+
 class VideoGenerateRequest(BaseModel):
     prompt: str
     model: str = "p-video"

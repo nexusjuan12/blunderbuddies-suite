@@ -5,7 +5,7 @@ function assetUrl(path) {
   return path.startsWith("/") ? `${API_BASE}${path}` : path;
 }
 
-function AssetGallery({ assets = [], selectedId, onSelect }) {
+function AssetGallery({ assets = [], selectedId, onSelect, onRestore, onSaveToLibrary }) {
   const selectedAsset = assets.find((asset) => asset.id === selectedId) || assets[0] || null;
 
   return (
@@ -22,6 +22,14 @@ function AssetGallery({ assets = [], selectedId, onSelect }) {
             <span>{selectedAsset.aspect_ratio}</span>
           </div>
           <p>{selectedAsset.prompt}</p>
+          <div className="button-row">
+            <button type="button" onClick={() => onRestore?.(selectedAsset)}>
+              Load Generation State
+            </button>
+            <button type="button" onClick={() => onSaveToLibrary?.(selectedAsset)}>
+              Save to Library
+            </button>
+          </div>
         </div>
       )}
       <div className="asset-gallery">
