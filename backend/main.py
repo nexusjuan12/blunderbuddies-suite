@@ -540,8 +540,8 @@ async def generate_mock_video(
     )
     first_frame = first_result.scalar_one_or_none()
     last_frame = last_result.scalar_one_or_none()
-    if first_frame is None or last_frame is None:
-        raise HTTPException(status_code=400, detail="Approve first and last frames before generating video")
+    if first_frame is None:
+        raise HTTPException(status_code=400, detail="Approve a first frame before generating video")
 
     seed = payload.seed or int(uuid4().int % 2_147_483_647)
     if payload.upgrade_from_video_id:
@@ -557,10 +557,12 @@ async def generate_mock_video(
     if provider == "replicate":
         try:
             image_url = asset_for_replicate(first_frame.file_path)
+            last_frame_url = asset_for_replicate(last_frame.file_path) if last_frame else ""
             audio_url = asset_for_replicate(payload.audio_url) if payload.audio_url else ""
             output_url = replicate_service.generate_video(
                 payload.prompt,
                 image_url,
+                last_frame_url,
                 audio_url,
                 payload.duration_seconds,
                 payload.resolution,

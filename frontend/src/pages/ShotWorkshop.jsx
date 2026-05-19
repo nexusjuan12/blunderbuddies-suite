@@ -42,7 +42,7 @@ function ShotWorkshop({ episode }) {
   const lastApproved = production.images.find((image) => image.frame_type === "last" && image.approved);
   const approvedVideo = production.videos.find((video) => video.approved);
   const activeImages = production.images.filter((image) => image.frame_type === frameType);
-  const currentStep = approvedVideo ? "complete" : firstApproved && lastApproved ? "video" : firstApproved ? "last" : "first";
+  const currentStep = approvedVideo ? "complete" : firstApproved ? "video" : "first";
 
   async function loadShots() {
     if (!episode) {
@@ -81,13 +81,11 @@ function ShotWorkshop({ episode }) {
   }, [activeShotId]);
 
   useEffect(() => {
-    setFrameType(currentStep === "last" ? "last" : "first");
     setSelectedImageId(null);
     setSelectedVideoId(null);
     setInputSlots([]);
-    if (currentStep === "last" && firstApproved) {
-      setImagePrompt(firstApproved.prompt);
-    } else if (activeShot) {
+    if (activeShot) {
+      setFrameType(firstApproved && !lastApproved ? "last" : "first");
       setImagePrompt("");
       setVideoPrompt("");
     }
@@ -378,7 +376,7 @@ function ShotWorkshop({ episode }) {
               </div>
             </div>
 
-            {currentStep !== "video" && currentStep !== "complete" && (
+            {currentStep !== "complete" && (
               <div className="generation-panel">
                 <div className="step-tabs">
                   <button type="button" className={frameType === "first" ? "active" : ""} onClick={() => setFrameType("first")}>
@@ -420,8 +418,11 @@ function ShotWorkshop({ episode }) {
               </div>
             )}
 
-            {currentStep === "video" && (
+            {currentStep !== "complete" && firstApproved && (
               <div className="generation-panel">
+                <div className="notice">
+                  Video generation will use the approved first frame{lastApproved ? " and approved last frame." : ". Approving a last frame is optional."}
+                </div>
                 <PromptEditor value={videoPrompt} onChange={setVideoPrompt} placeholder="Write an image-to-video prompt" />
                 <div className="button-row">
                   <button type="button" onClick={assistVideoPrompt} disabled={loading}>

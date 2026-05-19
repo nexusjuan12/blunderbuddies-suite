@@ -51,7 +51,7 @@ def generate_image(prompt, image_input_urls, resolution, aspect_ratio):
     return output_to_url(output)
 
 
-def generate_video(prompt, image_url, audio_url, duration, resolution, fps, draft, seed):
+def generate_video(prompt, image_url, last_frame_url, audio_url, duration, resolution, fps, draft, seed):
     input_payload = {
         "prompt": prompt,
         "image": image_url,
@@ -60,6 +60,8 @@ def generate_video(prompt, image_url, audio_url, duration, resolution, fps, draf
         "draft": draft,
         "prompt_upsampling": True,
     }
+    if last_frame_url:
+        input_payload["last_frame_image"] = last_frame_url
     if seed is not None:
         input_payload["seed"] = seed
     if audio_url:
