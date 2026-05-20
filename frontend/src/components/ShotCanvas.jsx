@@ -13,7 +13,7 @@ function ShotCanvas({ shots, activeShotId, onSelect, productionByShot = {} }) {
         >
           <div className="entry-card-header">
             <span className="badge">Shot {shot.order_index}</span>
-            <span className="badge">{shot.status}</span>
+            <span className={`badge status-${shot.status}`}>{shot.status}</span>
           </div>
           <div className="shot-thumb-pair">
             {(productionByShot[shot.id]?.images || [])

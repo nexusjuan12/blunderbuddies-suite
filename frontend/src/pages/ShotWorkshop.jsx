@@ -1,4 +1,4 @@
-import { Check, Send, WandSparkles } from "lucide-react";
+import { BadgeCheck, Check, Image as ImageIcon, RotateCcw, Send, Video, WandSparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { API_BASE, api } from "../api.js";
 import AssetGallery from "../components/AssetGallery.jsx";
@@ -7,10 +7,23 @@ import PromptEditor from "../components/PromptEditor.jsx";
 import ShotCanvas from "../components/ShotCanvas.jsx";
 
 const defaultImagePrompt = "";
+const workflowSteps = [
+  { id: "first", label: "Frames", detail: "Create and approve a first frame." },
+  { id: "video", label: "Motion", detail: "Generate draft or final video." },
+  { id: "complete", label: "Approval", detail: "Shot is ready for assembly." },
+];
 
 function urlFor(path) {
   if (!path) return "";
   return path.startsWith("/") ? `${API_BASE}${path}` : path;
+}
+
+function stepState(stepId, currentStep) {
+  const order = workflowSteps.findIndex((step) => step.id === stepId);
+  const current = workflowSteps.findIndex((step) => step.id === currentStep);
+  if (order < current) return "done";
+  if (order === current) return "current";
+  return "upcoming";
 }
 
 function ShotWorkshop({ episode }) {
@@ -391,14 +404,29 @@ function ShotWorkshop({ episode }) {
 
   return (
     <section className="shot-workshop">
-      <div className="panel">
+      <div className="panel workshop-overview">
         <div className="section-header">
           <div>
             <h1>Shot Workshop</h1>
-            <p>First frame, last frame, and video approval workflow.</p>
+            <p>Build one shot at a time: lock the frame, create motion, approve for assembly.</p>
           </div>
           {activeShot && <span className="badge">{currentStep}</span>}
         </div>
+        {activeShot && (
+          <div className="workflow-rail" aria-label="Shot workflow">
+            {workflowSteps.map((step) => (
+              <div className={`workflow-step ${stepState(step.id, currentStep)}`} key={step.id}>
+                <span className="workflow-dot">
+                  {stepState(step.id, currentStep) === "done" ? <Check size={14} /> : workflowSteps.indexOf(step) + 1}
+                </span>
+                <div>
+                  <strong>{step.label}</strong>
+                  <span>{step.detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         {error && <div className="error-banner inline-error">{error}</div>}
         <ShotCanvas shots={shots} activeShotId={activeShotId} onSelect={setActiveShotId} productionByShot={productionByShot} />
       </div>
@@ -408,12 +436,12 @@ function ShotWorkshop({ episode }) {
       {activeShot && (
         <div className="workshop-grid">
           <section className="panel">
-            <div className="section-header">
+            <div className="section-header shot-heading">
               <div>
                 <h2>Shot {activeShot.order_index}</h2>
                 <p>{activeShot.description}</p>
               </div>
-              <span className="badge">{activeShot.status}</span>
+              <span className={`badge status-${activeShot.status}`}>{activeShot.status}</span>
             </div>
             <div className="shot-detail-grid">
               <div>
@@ -455,14 +483,23 @@ function ShotWorkshop({ episode }) {
             </div>
 
             {currentStep !== "complete" && (
-              <div className="generation-panel">
-                <div className="step-tabs">
-                  <button type="button" className={frameType === "first" ? "active" : ""} onClick={() => setFrameType("first")}>
-                    First Frame
-                  </button>
-                  <button type="button" className={frameType === "last" ? "active" : ""} onClick={() => setFrameType("last")} disabled={!firstApproved}>
-                    Last Frame
-                  </button>
+              <div className="generation-panel work-zone image-zone">
+                <div className="zone-header">
+                  <div>
+                    <span className="zone-kicker">
+                      <ImageIcon size={15} />
+                      Image Generation
+                    </span>
+                    <h3>{frameType === "first" ? "First frame" : "Last frame"}</h3>
+                  </div>
+                  <div className="step-tabs">
+                    <button type="button" className={frameType === "first" ? "active" : ""} onClick={() => setFrameType("first")}>
+                      First Frame
+                    </button>
+                    <button type="button" className={frameType === "last" ? "active" : ""} onClick={() => setFrameType("last")} disabled={!firstApproved}>
+                      Last Frame
+                    </button>
+                  </div>
                 </div>
                 <PromptEditor value={imagePrompt} onChange={setImagePrompt} />
                 <ImageInputSlots slots={inputSlots} onChange={setInputSlots} libraryEntries={libraryImages} previousImage={frameType === "last" ? firstApproved : null} />
@@ -478,10 +515,10 @@ function ShotWorkshop({ episode }) {
                     <option>1:1</option>
                     <option>4:3</option>
                   </select>
-                  <button type="button" onClick={generateImage} disabled={loading || !imagePrompt.trim()}>
+                  <button type="button" className="primary-action" onClick={generateImage} disabled={loading || !imagePrompt.trim()}>
                     Generate Image
                   </button>
-                  <button type="button" onClick={approveSelectedImage} disabled={loading || !selectedImageId}>
+                  <button type="button" className="success-action" onClick={approveSelectedImage} disabled={loading || !selectedImageId}>
                     <Check size={16} />
                     Approve Selected
                   </button>
@@ -497,7 +534,16 @@ function ShotWorkshop({ episode }) {
             )}
 
             {currentStep !== "complete" && firstApproved && (
-              <div className="generation-panel">
+              <div className="generation-panel work-zone video-zone">
+                <div className="zone-header">
+                  <div>
+                    <span className="zone-kicker">
+                      <Video size={15} />
+                      Video Generation
+                    </span>
+                    <h3>{draftMode ? "Draft motion pass" : "Final render"}</h3>
+                  </div>
+                </div>
                 <div className="notice">
                   Video generation will use the approved first frame{lastApproved ? " and approved last frame." : ". Approving a last frame is optional."}
                 </div>
@@ -533,6 +579,7 @@ function ShotWorkshop({ episode }) {
                   </label>
                   <button
                     type="button"
+                    className="primary-action"
                     onClick={generateVideo}
                     disabled={loading || !canGenerateVideo}
                     title={!canGenerateVideo ? "Write a video prompt or select an existing video to reuse its prompt." : ""}
@@ -547,7 +594,7 @@ function ShotWorkshop({ episode }) {
                   >
                     Upgrade to Final
                   </button>
-                  <button type="button" onClick={approveSelectedVideo} disabled={loading || !selectedVideoId}>
+                  <button type="button" className="success-action" onClick={approveSelectedVideo} disabled={loading || !selectedVideoId}>
                     <Check size={16} />
                     Approve Shot
                   </button>
@@ -573,16 +620,18 @@ function ShotWorkshop({ episode }) {
             )}
 
             {currentStep === "complete" && (
-              <div className="empty-state">
+              <div className="empty-state completion-state">
+                <BadgeCheck size={28} />
                 <p>Shot approved. Select another shot from the canvas to revisit or continue.</p>
                 <button type="button" onClick={reopenActiveShot} disabled={loading}>
+                  <RotateCcw size={16} />
                   Reopen Shot
                 </button>
               </div>
             )}
           </section>
 
-          <aside className="panel">
+          <aside className="panel workshop-sidebar">
             <h2>Workshop Assistant</h2>
             <div className="prompt-history">
               {assistantMessages.length === 0 && <div className="empty-state">Discuss the shot before committing to a prompt or edit.</div>}
