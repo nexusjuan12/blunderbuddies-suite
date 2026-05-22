@@ -1,20 +1,25 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "Starting Blunderbuddies Production Suite..."
 
-cd backend
-python3 -m venv .venv
+PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+cd "$PROJECT_DIR/backend"
+if [ ! -d .venv ]; then
+  python3 -m venv .venv
+fi
 source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000 &
+pip install -q -r requirements.txt
+uvicorn main:app --reload --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
-cd ../frontend
-npm install
+cd "$PROJECT_DIR/frontend"
+if [ ! -d node_modules ]; then
+  npm install
+fi
 npm run dev &
 FRONTEND_PID=$!
 
-trap "kill $BACKEND_PID $FRONTEND_PID" EXIT
+trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null || true" EXIT
 wait
-
